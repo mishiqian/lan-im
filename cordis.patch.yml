@@ -1,0 +1,3 @@
+- insert:
+    - id: lan-im
+      name: '@dsh-external/lan-im'
