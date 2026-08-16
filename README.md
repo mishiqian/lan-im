@@ -31,7 +31,7 @@ dsh web     # 重启组合生效
 dsh plugin --profile web add git:<仓库地址>.git && dsh web
 
 # 方式三：npm 源（发布后）
-dsh plugin --profile web add @dsh-external/lan-im && dsh web
+dsh plugin --profile web add @mishiqian/lan-im && dsh web
 
 # 方式四：静态压缩包（已构建好 lib，源码一并附带）
 tar -xzf lan-im-plugin-static-v0.5.0.tar.gz

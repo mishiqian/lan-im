@@ -1,5 +1,5 @@
 {
-  "name": "@dsh-external/lan-im",
+  "name": "@mishiqian/lan-im",
   "version": "0.5.0",
   "description": "局域网即时通信：账号 + UUID/私有频道 + 可靠消息 + 局域网网盘（按需拉取/缓存） + 文件附件 + 撤回/编辑 + 搜索 + PSK + 未读通知",
   "type": "module",

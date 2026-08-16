@@ -1,4 +1,4 @@
-const id = '@dsh-external/lan-im'
+const id = '@mishiqian/lan-im'
 const platformModules = [
   '@deepseek-ai/dsh-client-runtime/client',
   'react',
