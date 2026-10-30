@@ -66,9 +66,47 @@ export function FileBubble(props: { file: FileInfo; selfAccountId: string }): Re
   )
 }
 
+/**
+ * 产品标志：对话气泡 + 三个节点（与 icon.svg 同源，内联成组件以便随尺寸/底色复用）。
+ * tile 给了就画圆角底板；不给则表示「画在已有底板上」，节点用 node 颜色表现镂空。
+ */
+export function LanImMark(props: { size: number; tile?: string; bubble?: string; node?: string }): React.ReactElement {
+  const bubble = props.bubble ?? '#F0FDFA'
+  const node = props.node ?? props.tile ?? '#0891B2'
+  const children: React.ReactNode[] = []
+  if (props.tile !== undefined) {
+    children.push(React.createElement('rect', { key: 'tile', x: 4, y: 4, width: 56, height: 56, rx: 14, fill: props.tile }))
+  }
+  children.push(React.createElement('path', {
+    key: 'bubble',
+    d: 'M22 17h20a10 10 0 0 1 10 10v7a10 10 0 0 1-10 10H30l-9 7v-7a10 10 0 0 1-9-10v-7a10 10 0 0 1 10-10Z',
+    fill: bubble,
+  }))
+  children.push(React.createElement('path', {
+    key: 'link',
+    d: 'm23 35.5 9-10 9 10',
+    fill: 'none',
+    stroke: node,
+    strokeWidth: 3.5,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  }))
+  for (const [key, cx, cy] of [['a', 32, 25.5], ['b', 23, 35.5], ['c', 41, 35.5]] as Array<[string, number, number]>) {
+    children.push(React.createElement('circle', { key, cx, cy, r: 4.5, fill: node }))
+  }
+  return React.createElement('svg', {
+    className: 'lim-mark',
+    width: props.size,
+    height: props.size,
+    viewBox: '0 0 64 64',
+    role: 'img',
+    'aria-label': '局域网聊天',
+  }, children)
+}
+
 export function Launcher(props: { unread: number; onClick: () => void }): React.ReactElement {
   return React.createElement('button', { className: 'lim-launcher', 'data-lanim-trigger': '1', title: '局域网聊天（Ctrl+Shift+L）', onClick: props.onClick },
-    '💬',
+    React.createElement(LanImMark, { size: 26, bubble: '#ffffff', node: '#0891B2' }),
     props.unread > 0 ? React.createElement('span', { className: 'lim-badge' }, props.unread > 99 ? '99+' : String(props.unread)) : null,
   )
 }
@@ -580,7 +618,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
   return React.createElement('div',
     { className: 'lim-window' + (dark ? ' lim-dark' : ' lim-light'), style: { left: pos.x, top: pos.y, width: size.w, height: size.h }, ref: rootRef },
     React.createElement('div', { className: 'lim-header', onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp, onPointerCancel: onHeaderPointerUp },
-      React.createElement('span', { className: 'lim-dot' }, '💬'),
+      React.createElement(LanImMark, { size: 18, tile: '#0891B2' }),
       React.createElement('span', { className: 'lim-title' }, '局域网聊天'),
       React.createElement('span', { className: 'lim-ver', title: '插件版本' }, __LANIM_VERSION__),
       React.createElement('span', { className: 'lim-count' }, `${accounts.length + 1} 在线`),

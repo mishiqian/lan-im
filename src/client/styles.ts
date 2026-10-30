@@ -8,7 +8,7 @@ export const CSS = `
 .lim-window{position:fixed;z-index:99990;width:460px;max-width:calc(100vw - 16px);height:600px;max-height:calc(100vh - 16px);display:flex;flex-direction:column;background:var(--lim-bg);color:var(--lim-fg);border:1px solid var(--lim-border);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.35);overflow:hidden;font-size:14px;line-height:1.5;font-family:inherit}
 .lim-window *{box-sizing:border-box;-webkit-text-fill-color:currentColor}
 .lim-header{display:flex;align-items:center;gap:6px;padding:10px 12px;background:var(--lim-panel);border-bottom:1px solid var(--lim-border);cursor:move;user-select:none;touch-action:none}
-.lim-dot{font-size:16px;line-height:1}
+.lim-mark{display:block;flex:none}
 .lim-title{font-weight:700;font-size:14px}
 .lim-ver{font-size:10px;color:var(--lim-muted);opacity:.75;letter-spacing:.02em}
 .lim-count{font-size:12px;color:var(--lim-muted);flex:1;text-align:right}
