@@ -32,6 +32,9 @@ export class ClientHub {
     this.send(ws, { t: 'error', message })
   }
 
+  /** 主动向所有已连接客户端推一条消息（外部模块用）。 */
+  push(payload: unknown): void { this.broadcast(payload) }
+
   private broadcast(payload: unknown): void {
     const data = JSON.stringify(payload)
     for (const c of this.clients) {

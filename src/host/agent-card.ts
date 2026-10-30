@@ -7,6 +7,7 @@
  * - 哈希用于克隆安装时防篡改，签名字段留给 M2。
  */
 import { createHash } from 'node:crypto'
+import { AGENT_TOOLS, AGENT_PERMISSIONS, type AgentCard, type AgentPermission, type AgentToolGrant, type AgentToolName, type AgentBudget, type AgentSample } from '../protocol.ts'
 
 export const AGENT_CARD_SCHEMA = 1
 
@@ -16,54 +17,17 @@ export const AGENT_ID_RE = /^[a-z0-9][a-z0-9-]{1,31}$/
 export const AGENT_ACCOUNT_RE = /^[a-zA-Z0-9_.-]{1,32}$/
 export const AGENT_SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
 
-/** 能力包络允许声明的工具（未在此列的工具一律拒绝） */
-export const AGENT_TOOLS = ['fs.read', 'fs.write', 'bash', 'web.fetch'] as const
-export type AgentToolName = (typeof AGENT_TOOLS)[number]
-
-export const AGENT_PERMISSIONS = ['read-only', 'workspace-write', 'danger-full-access'] as const
-export type AgentPermission = (typeof AGENT_PERMISSIONS)[number]
-
-export interface AgentToolGrant {
-  name: AgentToolName
-  /** fs.read / fs.write：相对 agent 根目录的路径范围，如 "share/**" */
-  scope?: string
-  /** bash / web.fetch：允许的前缀或域名 */
-  allow?: string[]
-  /** bash：明确禁止的前缀（优先级高于 allow） */
-  deny?: string[]
-}
-
-export interface AgentBudget {
-  turns?: number
-  tokens?: number
-  seconds?: number
-}
-
-export interface AgentSample {
-  in: string
-  out: string
-  note?: string
-}
-
-export interface AgentCard {
-  schema: number
-  id: string
-  version: string
-  name: string
-  summary: string
-  author: { accountId: string; keyId?: string }
-  input: { type: 'text' | 'file' | 'any'; hint?: string }
-  output: { type: 'markdown' | 'text' | 'json' | 'file' }
-  requires: {
-    model?: string
-    permissions?: AgentPermission
-    tools: AgentToolGrant[]
-    budget: AgentBudget
-  }
-  exposure: { cloneable: boolean; callable: boolean; acl?: 'lan' | 'accounts'; accounts?: string[] }
-  samples: AgentSample[]
-  integrity?: { sha256?: string; keyId?: string; sig?: string }
-}
+// 类型定义在 protocol.ts，客户端与宿主共用一份；这里只做校验与哈希。
+export {
+  AGENT_TOOLS,
+  AGENT_PERMISSIONS,
+  type AgentToolName,
+  type AgentPermission,
+  type AgentToolGrant,
+  type AgentBudget,
+  type AgentSample,
+  type AgentCard,
+} from '../protocol.ts'
 
 export interface CardIssue {
   field: string

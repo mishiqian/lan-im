@@ -13,6 +13,11 @@ import { FileTransfer } from './file-transfer.ts'
 import { SharedFileStore } from './shared-file-store.ts'
 import { Settings } from './settings.ts'
 import { HttpGateway } from './http-gateway.ts'
+import { AgentRegistry } from './agent-registry.ts'
+import { AgentInstaller } from './agent-install.ts'
+import type { AgentPackage } from '../protocol.ts'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
 /**
  * 宿主运行时组合根：持有各业务模块与共享状态，并负责启动/停止编排。
@@ -38,10 +43,24 @@ export class HostRuntime {
   readonly discovery = new Discovery(this)
   readonly messaging = new Messaging(this)
   readonly settings = new Settings(this)
+  readonly agents = new AgentRegistry({
+    dir: join(this.storage.dataDir(), 'agents'),
+    selfAccount: () => this.self.accountId,
+    onPublish: (card) => {
+      this.peerNetwork.broadcastWire({ t: 'agentCard', card })
+      this.clients.push({ t: 'agentsChanged', agents: this.agents.list() })
+    },
+  })
+  readonly agentInstaller = new AgentInstaller({
+    presetsDir: join(process.env.DSH_HOME && process.env.DSH_HOME !== '' ? process.env.DSH_HOME : join(homedir(), '.dsh'), '.agent-presets'),
+    registry: this.agents,
+  })
+  private readonly agentFetches = new Map<string, (pkg: AgentPackage | undefined) => void>()
   readonly gateway = new HttpGateway(this)
 
   async start(): Promise<void> {
     await this.storage.adoptLegacyData()
+    await this.agents.load()
     const config = await this.storage.readConfig()
     await this.storage.ensureDataDir()
     this.clients.logEvent(`数据目录：${this.storage.dataDir()}`)
@@ -78,6 +97,39 @@ export class HostRuntime {
     this.discovery.stop()
     this.gateway.closeClients()
     this.clients.closeAll()
+  }
+
+  /** 向某个 peer 拉取 agent 包；超时返回 undefined，不抛错。 */
+  async fetchAgentPackage(account: string, id: string, timeoutMs = 15000): Promise<AgentPackage | undefined> {
+    const peer = this.peerNetwork.peersSnapshot().find((p) => p.accountId === account)
+    if (peer === undefined) return undefined
+    const reqId = randomUUID()
+    return await new Promise<AgentPackage | undefined>((resolve) => {
+      const timer = setTimeout(() => {
+        this.agentFetches.delete(reqId)
+        resolve(undefined)
+      }, timeoutMs)
+      this.agentFetches.set(reqId, (pkg) => {
+        clearTimeout(timer)
+        this.agentFetches.delete(reqId)
+        resolve(pkg)
+      })
+      const sent = this.peerNetwork.sendWire(peer.nodeId, { t: 'agentFetch', reqId, accountId: this.self.accountId, id })
+      if (!sent) this.clients.logEvent(`agent 包请求排队：${account}/${id}`)
+    })
+  }
+
+  /** peer 回包 */
+  resolveAgentPackage(reqId: string, pkg: AgentPackage | undefined): void {
+    const done = this.agentFetches.get(reqId)
+    if (done !== undefined) done(pkg)
+  }
+
+  /** 连上某个 peer 后，把我的目录同步过去 */
+  syncAgentsTo(nodeId: string): void {
+    const cards = this.agents.myAgents()
+    if (cards.length === 0) return
+    this.peerNetwork.sendWire(nodeId, { t: 'agentCardsSync', cards })
   }
 
   /** 当前配置视角账号；沿用旧文件里的 passwordHash/salt。 */

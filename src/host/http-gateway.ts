@@ -92,6 +92,28 @@ export class HttpGateway {
                 // 客户端在 dsh-app:// 里拿不到 http origin，这里用请求的 Host 回推
                 return json(res, 200, { ok: true, host: req.headers.host ?? '', action })
               }
+              if (action === 'agent.list') {
+                return json(res, 200, { ok: true, agents: this.runtime.agents.list(), installed: this.runtime.agents.installedList() })
+              }
+              if (action === 'agent.publish') {
+                const result = await this.runtime.agents.publish(body.card, Array.isArray(body.files) ? body.files : [])
+                return json(res, 200, result.ok ? { ok: true, card: result.card } : { ok: false, errors: result.errors })
+              }
+              if (action === 'agent.unpublish') {
+                return json(res, 200, { ok: await this.runtime.agents.unpublish(String(body.id ?? '')) })
+              }
+              if (action === 'agent.fetch') {
+                const pkg = await this.runtime.fetchAgentPackage(String(body.account ?? ''), String(body.id ?? ''))
+                return json(res, 200, pkg === undefined ? { ok: false, error: '对端不在线或没有这个包' } : { ok: true, pkg })
+              }
+              if (action === 'agent.install') {
+                const result = await this.runtime.agentInstaller.install(body.pkg)
+                return json(res, 200, result.ok ? { ok: true, record: result.record } : { ok: false, errors: result.errors })
+              }
+              if (action === 'agent.uninstall') {
+                const done = await this.runtime.agentInstaller.uninstall(String(body.account ?? ''), String(body.id ?? ''))
+                return json(res, 200, { ok: done })
+              }
               if (action === 'log') {
                 this.runtime.clients.logEvent(String(body.message ?? '').slice(0, 300))
                 return json(res, 200, { ok: true })
@@ -176,6 +198,7 @@ export class HttpGateway {
               channels: this.runtime.channelRegistry.list(),
               messages: this.runtime.messageStore.messages.slice(-HISTORY_LIMIT),
               sharedFiles: this.runtime.sharedFileStore.list(),
+              agents: this.runtime.agents.list(),
               clients: this.runtime.clients.count,
               log: this.runtime.clients.log,
             })
