@@ -12,11 +12,11 @@
 - **频道**：UUID 稳定标识，支持重命名/描述/解散；公共频道 + 私有频道（成员邀请/移除、消息按成员路由）。
 - **局域网网盘**：每个频道一个共享文件空间，索引广播 + 按需拉取 + 本地缓存；上传者可删除。
 - **历史**：本地落盘到 `~/.dsh/plugins-data/lan-im/`（内存窗口上限 500 条，历史文件全量保留）。
-- **UI**：侧边栏入口 + 悬浮可拖拽窗（✕/Esc/点击外关闭）+ 🛠 诊断日志。
+- **UI**：悬浮可拖拽窗，挂载在框架自带的 `shell.overlay` 插槽上（✕/Esc/点击外关闭，Ctrl/⌘+Shift+L 唤起）+ 🛠 诊断日志；不自建 DOM、不往顶栏塞按钮。
 
 ## 前置条件
 
-- DeepSeek Harness 标准组合（已含 `webServer`，支持 `registerUpgrade`）。
+- DeepSeek Harness **0.2.1-rc.2 及以上**（`engines.dsh` 已声明；客户端落位依赖 `shell.overlay` 槽，宿主侧依赖 `webServer.registerUpgrade`）。
 - 同一局域网、各节点互通；放行 **UDP 5353（mDNS 组播）** 与 **UDP 42123（广播兜底）**，以及节点间 WebSocket 临时端口。
 
 ## 安装
@@ -34,7 +34,7 @@ dsh plugin --profile web add git:<仓库地址>.git && dsh web
 dsh plugin --profile web add @mishiqian/lan-im && dsh web
 
 # 方式四：静态压缩包（已构建好 lib，源码一并附带）
-tar -xzf lan-im-plugin-static-v0.5.0.tar.gz
+tar -xzf lan-im-plugin-static-v0.6.0.tar.gz
 cd lan-im && npm install && npm run build
 dsh plugin --profile web add .
 dsh web

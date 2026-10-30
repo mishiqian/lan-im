@@ -1,15 +1,15 @@
 /**
- * 局域网即时通信（lan-im）客户端入口 v4。
- * UI 与状态拆分：styles.ts / format.ts / components.ts，本文件只保留 App 状态编排与 DOM 挂载。
+ * 局域网即时通信（lan-im）客户端入口 v5。
+ * UI 与状态拆分：styles.ts / format.ts / components.ts，本文件只保留窗口状态编排；
+ * 落位交给 Slot 系统（shell.overlay），不再自建 DOM 容器或往顶栏塞按钮。
  */
 import * as React from 'react'
-import { createRoot, type Root } from 'react-dom/client'
 import { CHUNK_SIZE, type Channel, type ChannelKind, type ChatMessage, type FileInfo, type Peer, type SelfInfo, type SharedFile, type TargetType } from '../protocol.ts'
 import { CSS } from './styles.ts'
 import { requestNotif, wsUrl } from './format.ts'
 import { ChatWindow, Launcher } from './components.ts'
 
-function App(props: { onToggle: (fn: () => void) => void; onOpenChange: (open: boolean) => void }): React.ReactElement {
+function App(): React.ReactElement {
   const [open, setOpen] = React.useState(false)
   const [self, setSelf] = React.useState<SelfInfo | null>(null)
   const [peers, setPeers] = React.useState<Peer[]>([])
@@ -36,8 +36,17 @@ function App(props: { onToggle: (fn: () => void) => void; onOpenChange: (open: b
   React.useEffect(() => { openRef.current = open }, [open])
   React.useEffect(() => { activeRef.current = active; activeTypeRef.current = activeType }, [active, activeType])
   React.useEffect(() => { mutedRef.current = muted }, [muted])
-  React.useEffect(() => { props.onToggle(() => setOpen((o) => !o)) }, [props.onToggle])
-  React.useEffect(() => { props.onOpenChange(open) }, [open, props.onOpenChange])
+  React.useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'l') {
+        event.preventDefault()
+        requestNotif()
+        setOpen((value) => !value)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   React.useEffect(() => {
     let closed = false
@@ -173,6 +182,7 @@ function App(props: { onToggle: (fn: () => void) => void; onOpenChange: (open: b
   const totalUnread = Object.values(unread).reduce<number>((a, b) => a + (b as number), 0)
 
   return React.createElement(React.Fragment, null,
+    React.createElement('style', null, CSS),
     open ? React.createElement(ChatWindow, {
       self, peers, channels, messages, files, sharedFiles, logs, connected, unread, muted, active, activeType, searchResults,
       onSelect: selectConv, onSend: send, onSetName: setName, onSetupAccount: setupAccount, onSetupPsk: setupPsk,
@@ -190,68 +200,30 @@ function App(props: { onToggle: (fn: () => void) => void; onOpenChange: (open: b
   )
 }
 
-export const inject: string[] = []
+/**
+ * Slot 落位：整窗挂在 shell.overlay（框架自带的悬浮层）上。
+ * 不再自建 body 容器、不扫 [role=tablist]、不塞按钮——UI 结构由宿主决定。
+ */
+export const inject: string[] = ['slots']
 
 export function apply(ctx: any): void {
-  let toggleRef: () => void = () => {}
-  let tab: HTMLButtonElement | undefined
-
-  const style = document.createElement('style')
-  style.textContent = CSS
-  document.head.append(style)
-
-  const container = document.createElement('div')
-  container.id = 'lan-im-root'
-  document.body.append(container)
-  const root: Root = createRoot(container)
-  root.render(React.createElement(App, {
-    onToggle: (fn: () => void) => { toggleRef = fn },
-    onOpenChange: (open: boolean) => { tab?.setAttribute('aria-selected', String(open)) },
-  }))
-
-  const findTablist = (): HTMLElement | undefined => {
-    const tablists = document.querySelectorAll<HTMLElement>('[role="tablist"]')
-    for (const list of Array.from(tablists)) {
-      const labels = Array.from(list.querySelectorAll<HTMLButtonElement>(':scope > button[role="tab"]')).map((t) => t.textContent?.trim() ?? '')
-      if (labels.some((l) => l === '轨迹' || l === 'Trajectory' || l.includes('轨迹'))) return list
-    }
-    for (const list of Array.from(tablists)) {
-      if (list.querySelector(':scope > button[role="tab"]') !== null) return list
-    }
-    return undefined
+  const slots = ctx.slots !== undefined
+    ? ctx.slots
+    : (typeof ctx.get === 'function' ? ctx.get('slots') : undefined)
+  if (slots === undefined) {
+    console.error('[lan-im] slots 不可用，聊天窗不会出现')
+    return
   }
 
-  const mountTab = (): void => {
-    if (tab !== undefined) return
-    const list = findTablist()
-    if (list === undefined) return
-    const reference = list.querySelector<HTMLButtonElement>(':scope > button[role="tab"][aria-selected="false"]')
-      ?? list.querySelector<HTMLButtonElement>(':scope > button[role="tab"]')
-    if (reference === null) return
-    const button = document.createElement('button')
-    button.type = 'button'; button.role = 'tab'; button.className = reference.className; button.title = '局域网聊天（Ctrl+Shift+L）'
-    button.setAttribute('data-lanim-trigger', '1')
-    const icon = document.createElement('span'); icon.textContent = '💬'
-    const label = document.createElement('span'); label.textContent = '局域网聊天'
-    button.append(icon, label); button.setAttribute('aria-selected', 'false'); button.onclick = () => toggleRef()
-    list.append(button); tab = button
+  const own = (factory: () => () => void): void => {
+    const dispose = factory()
+    if (typeof ctx.effect === 'function') ctx.effect(() => dispose)
   }
 
-  const tabObserver = new MutationObserver(mountTab)
-  tabObserver.observe(document.body, { childList: true, subtree: true })
-  mountTab()
-
-  const onKey = (event: KeyboardEvent): void => {
-    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'l') { event.preventDefault(); toggleRef() }
-  }
-  window.addEventListener('keydown', onKey)
-
-  ctx.effect(() => () => {
-    window.removeEventListener('keydown', onKey)
-    tabObserver.disconnect()
-    tab?.remove()
-    root.unmount()
-    container.remove()
-    style.remove()
-  }, 'lan-im: floating chat window')
+  own(() => slots.inject('shell.overlay', () => slots.register({
+    name: 'shell.overlay',
+    id: 'lan-im',
+    order: 50,
+    label: () => '局域网聊天',
+  }, App)))
 }

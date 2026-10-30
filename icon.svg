@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="局域网即时通信">
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#0891B2"/>
+  <path d="M22 17h20a10 10 0 0 1 10 10v7a10 10 0 0 1-10 10H30l-9 7v-7a10 10 0 0 1-9-10v-7a10 10 0 0 1 10-10Z" fill="#F0FDFA"/>
+  <g fill="#0E7490">
+    <path d="m23 35.5 9-10 9 10" fill="none" stroke="#0E7490" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="32" cy="25.5" r="4.5"/>
+    <circle cx="23" cy="35.5" r="4.5"/>
+    <circle cx="41" cy="35.5" r="4.5"/>
+  </g>
+</svg>

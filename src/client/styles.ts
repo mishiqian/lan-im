@@ -1,9 +1,10 @@
 /**
- * 悬浮窗全部样式（CSS-in-TS 字符串）。
+ * 聊天窗全部样式（CSS-in-TS 字符串）。
+ * 颜色一律映射到宿主主题令牌 --dsw-alias-*，后面的字面量只在令牌缺失时兜底，
+ * 因此浅色/深色都跟着 DSH 主题走，不再自己判断深浅色。
  */
 export const CSS = `
-.lim-window{--lim-bg:#ffffff;--lim-panel:#f6f6f7;--lim-fg:#1c1c1e;--lim-muted:#6b6b70;--lim-border:rgba(0,0,0,.12);--lim-hover:rgba(0,0,0,.06);--lim-active:rgba(59,130,246,.14);--lim-accent:#3b82f6;--lim-bubble-theirs:rgba(0,0,0,.07);--lim-bubble-mine:#3b82f6;--lim-danger:#dc4a4a}
-.lim-window.lim-dark{--lim-bg:#1b1b1c;--lim-panel:#232324;--lim-fg:#e8e8ea;--lim-muted:#9a9aa0;--lim-border:rgba(255,255,255,.12);--lim-hover:rgba(255,255,255,.07);--lim-active:rgba(59,130,246,.22);--lim-accent:#4c8dff;--lim-bubble-theirs:rgba(255,255,255,.09);--lim-bubble-mine:#3b82f6;--lim-danger:#f07878}
+.lim-window{--lim-bg:var(--dsw-alias-bg-layer-1,#ffffff);--lim-panel:var(--dsw-alias-bg-layer-2,#f6f6f7);--lim-fg:var(--dsw-alias-label-primary,#1c1c1e);--lim-muted:var(--dsw-alias-label-secondary,#6b6b70);--lim-border:var(--dsw-alias-border-l1,rgba(0,0,0,.12));--lim-hover:color-mix(in srgb,var(--dsw-alias-label-primary,#000) 7%,transparent);--lim-active:color-mix(in srgb,var(--dsw-alias-brand-primary,#3b82f6) 18%,transparent);--lim-accent:var(--dsw-alias-brand-primary,#3b82f6);--lim-bubble-theirs:color-mix(in srgb,var(--dsw-alias-label-primary,#000) 8%,transparent);--lim-bubble-mine:var(--dsw-alias-brand-primary,#3b82f6);--lim-danger:var(--dsw-alias-state-error-primary,#dc4a4a);--lim-ok:var(--dsw-alias-state-success-primary,#2ecc71)}
 .lim-window{position:fixed;z-index:99990;width:460px;max-width:calc(100vw - 16px);height:600px;max-height:calc(100vh - 16px);display:flex;flex-direction:column;background:var(--lim-bg);color:var(--lim-fg);border:1px solid var(--lim-border);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.35);overflow:hidden;font-size:14px;line-height:1.5;font-family:inherit}
 .lim-window *{box-sizing:border-box;-webkit-text-fill-color:currentColor}
 .lim-header{display:flex;align-items:center;gap:6px;padding:10px 12px;background:var(--lim-panel);border-bottom:1px solid var(--lim-border);cursor:move;user-select:none;touch-action:none}
@@ -25,7 +26,7 @@ export const CSS = `
 .lim-contact{display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--lim-fg)}
 .lim-contact:hover{background:var(--lim-hover)}
 .lim-contact.on{background:var(--lim-active);color:var(--lim-accent);font-weight:600}
-.lim-cdot{width:8px;height:8px;flex:none;border-radius:50%;background:#2ecc71}
+.lim-cdot{width:8px;height:8px;flex:none;border-radius:50%;background:var(--lim-ok)}
 .lim-cicon{flex:none;font-size:13px}
 .lim-contact-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lim-contact-badge{flex:none;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--lim-danger);color:#fff;font-size:10px;line-height:16px;text-align:center}
@@ -124,7 +125,7 @@ export const CSS = `
 .lim-profile-account{font-size:12px;color:var(--lim-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lim-profile-status{display:flex;gap:8px;flex-wrap:wrap}
 .lim-pill{font-size:11px;padding:4px 9px;border-radius:999px;background:var(--lim-hover);color:var(--lim-muted)}
-.lim-pill.on{background:rgba(46,204,113,.14);color:#2ecc71;font-weight:700}
+.lim-pill.on{background:color-mix(in srgb,var(--lim-ok) 14%,transparent);color:var(--lim-ok);font-weight:700}
 .lim-profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .lim-stat{display:flex;flex-direction:column;gap:2px;padding:9px 10px;border-radius:10px;background:var(--lim-hover);min-width:0}
 .lim-stat b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
