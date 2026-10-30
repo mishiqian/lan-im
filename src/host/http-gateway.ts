@@ -88,6 +88,14 @@ export class HttpGateway {
             if (req.method === 'POST') {
               const body = await readBody(req)
               const action = typeof body.action === 'string' ? body.action : 'state'
+              if (action === 'info') {
+                // 客户端在 dsh-app:// 里拿不到 http origin，这里用请求的 Host 回推
+                return json(res, 200, { ok: true, host: req.headers.host ?? '', action })
+              }
+              if (action === 'log') {
+                this.runtime.clients.logEvent(String(body.message ?? '').slice(0, 300))
+                return json(res, 200, { ok: true })
+              }
               if (action === 'send') {
                 const message = this.runtime.messaging.sendMessage(
                   String(body.to ?? '*'),

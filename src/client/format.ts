@@ -1,11 +1,51 @@
 /**
  * 客户端纯工具函数：URL、时间/大小格式化、深色模式、通知权限。
  */
-import { WS_PATH } from '../protocol.ts'
+import { API_ROUTE, WS_PATH } from '../protocol.ts'
+
+/**
+ * 可连的 HTTP 主机。Electron 桌面端页面跑在 dsh-app://app 上，window.location.host
+ * 是 "app"，拼出来的 ws://app 必然失败；这种情况下改用宿主回推的真实 Host。
+ */
+let apiHost: string | undefined
+
+export function setApiHost(host: string | undefined): void {
+  apiHost = host
+}
+
+export function currentApiHost(): string {
+  return apiHost ?? window.location.host
+}
+
+/**
+ * 宿主的 HTTP origin。桌面端页面在 dsh-app://app 上，但框架注入的
+ * __DSH_TRANSPORT__.streamBaseUrl 就是宿主 HTTP 地址（API gateway 自己也用它连 WS）。
+ */
+export async function resolveApiHost(): Promise<string> {
+  const transport = (window as unknown as { __DSH_TRANSPORT__?: { streamBaseUrl?: string } }).__DSH_TRANSPORT__
+  const base = transport?.streamBaseUrl
+  if (typeof base === 'string' && base !== '') {
+    try {
+      const host = new URL(base, window.location.href).host
+      if (host !== '') { apiHost = host; return host }
+    } catch { /* 继续往下试 */ }
+  }
+  if (/^https?:$/.test(window.location.protocol)) { apiHost = window.location.host; return apiHost }
+  try {
+    const res = await fetch(API_ROUTE, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'info' }),
+    })
+    const data = await res.json() as { host?: string }
+    if (typeof data.host === 'string' && /:\d+$/.test(data.host)) { apiHost = data.host; return apiHost }
+  } catch { /* 问不到就用页面自己的 */ }
+  return currentApiHost()
+}
 
 export function wsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${window.location.host}${WS_PATH}`
+  return `${proto}//${currentApiHost()}${WS_PATH}`
 }
 
 export function formatTime(ts: number): string {

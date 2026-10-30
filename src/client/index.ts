@@ -7,8 +7,24 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { API_ROUTE, CHUNK_SIZE, type Channel, type ChannelKind, type ChatMessage, type FileInfo, type Peer, type SelfInfo, type SharedFile, type TargetType } from '../protocol.ts'
 import { CSS } from './styles.ts'
-import { requestNotif, wsUrl } from './format.ts'
+import { currentApiHost, requestNotif, resolveApiHost, wsUrl } from './format.ts'
 import { ChatWindow, Launcher } from './components.ts'
+
+let wsFailureReports = 0
+async function reportWsFailure(): Promise<void> {
+  if (wsFailureReports >= 2) return
+  wsFailureReports += 1
+  try {
+    await fetch(API_ROUTE, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'log',
+        message: `客户端 WS 连接失败：${wsUrl()}（页面 ${window.location.href.slice(0, 80)}）`,
+      }),
+    })
+  } catch { /* 上报也失败就算了 */ }
+}
 
 function App(): React.ReactElement {
   const [open, setOpen] = React.useState(false)
@@ -120,9 +136,14 @@ function App(): React.ReactElement {
         setConnected(false)
         if (!closed) { timer = window.setTimeout(connect, delay); delay = Math.min(delay * 2, 10000) }
       }
-      ws.onerror = () => {}
+      ws.onerror = () => { void reportWsFailure() }
     }
-    connect()
+    void (async () => {
+      // 桌面端页面跑在 dsh-app://app 上，window.location.host 是 "app"；
+      // resolveApiHost 会先读 __DSH_TRANSPORT__.streamBaseUrl 拿到真正的 HTTP origin。
+      await resolveApiHost()
+      if (!closed) connect()
+    })()
     return () => { closed = true; if (timer !== undefined) window.clearTimeout(timer); try { wsRef.current?.close() } catch { /* 忽略 */ } }
   }, [])
 
