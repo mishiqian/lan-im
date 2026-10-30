@@ -7,8 +7,10 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { API_ROUTE, CHUNK_SIZE, type Channel, type ChannelKind, type ChatMessage, type FileInfo, type Peer, type SelfInfo, type SharedFile, type TargetType } from '../protocol.ts'
 import { CSS } from './styles.ts'
-import { currentApiHost, requestNotif, resolveApiHost, wsUrl } from './format.ts'
+import { apiBase, currentApiHost, requestNotif, resolveApiHost, wsUrl } from './format.ts'
 import { ChatWindow, Launcher } from './components.ts'
+import { AgentPanel, type PublishInput } from './agent-panel.ts'
+import type { AgentEntry } from '../protocol.ts'
 
 let wsFailureReports = 0
 async function reportWsFailure(): Promise<void> {
@@ -42,6 +44,9 @@ function App(): React.ReactElement {
   const [activeType, setActiveType] = React.useState<TargetType>('channel')
   const [searchResults, setSearchResults] = React.useState<ChatMessage[] | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  const [mode, setMode] = React.useState<'chat' | 'agents'>('chat')
+  const [agents, setAgents] = React.useState<AgentEntry[]>([])
+  const [agentBusy, setAgentBusy] = React.useState(false)
 
   const wsRef = React.useRef<WebSocket | null>(null)
   const seenIds = React.useRef(new Set<string>())
@@ -74,11 +79,16 @@ function App(): React.ReactElement {
     const connect = (): void => {
       const ws = new WebSocket(wsUrl())
       wsRef.current = ws
-      ws.onopen = () => { setConnected(true); delay = 1000 }
+      ws.onopen = () => { setConnected(true); delay = 1000; void refreshAgents() }
       ws.onmessage = (ev: MessageEvent) => {
         let msg: any
         try { msg = JSON.parse(String(ev.data)) } catch { return }
+        if (msg.t === 'agentsChanged') {
+          setAgents(Array.isArray(msg.agents) ? (msg.agents as AgentEntry[]) : [])
+          return
+        }
         if (msg.t === 'snapshot') {
+          setAgents(Array.isArray(msg.agents) ? (msg.agents as AgentEntry[]) : [])
           setSelf(msg.self as SelfInfo)
           setPeers(Array.isArray(msg.peers) ? (msg.peers as Peer[]) : [])
           setChannels(Array.isArray(msg.channels) ? (msg.channels as Channel[]) : [])
@@ -167,6 +177,71 @@ function App(): React.ReactElement {
     }
   }
 
+  const apiPost = async (body: unknown): Promise<any> => {
+    const res = await fetch(apiBase(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return await res.json()
+  }
+
+  const refreshAgents = async (): Promise<void> => {
+    try {
+      const r = await apiPost({ action: 'agent.list' })
+      if (r?.ok === true && Array.isArray(r.agents)) setAgents(r.agents as AgentEntry[])
+    } catch { /* 忽略：下次快照会带 */ }
+  }
+
+  const publishAgent = (input: PublishInput): void => {
+    const me = selfRef.current?.accountId ?? ''
+    if (me === '') { setError('先创建账号再发布'); return }
+    setAgentBusy(true)
+    const card = {
+      schema: 1,
+      id: input.id,
+      version: '1.0.0',
+      name: input.name,
+      summary: input.summary,
+      author: { accountId: me },
+      input: { type: 'text', ...(input.inputHint !== '' ? { hint: input.inputHint } : {}) },
+      output: { type: 'markdown' },
+      requires: { permissions: 'read-only', tools: input.tools, budget: {} },
+      exposure: { cloneable: input.cloneable, callable: input.callable, acl: 'lan' },
+      samples: [{ in: input.sampleIn, out: input.sampleOut }],
+    }
+    const files = [
+      { path: 'preset.yml', encoding: 'utf8', data: `# ${input.name}\n# 由 lan-im 发布，可直接编辑这个文件来调教\nname: ${input.id}\ndescription: ${input.summary}\n` },
+      { path: 'skills/ROLE.md', encoding: 'utf8', data: `# ${input.name}\n\n${input.summary}\n\n## 输入\n${input.inputHint || '无特殊说明'}\n` },
+    ]
+    void apiPost({ action: 'agent.publish', card, files })
+      .then((r: any) => {
+        if (r?.ok !== true) setError('发布失败：' + ((r?.errors ?? []).map((e: any) => `${e.field} ${e.message}`).join('；') || '未知错误'))
+        else void refreshAgents()
+      })
+      .catch((e: any) => setError('发布失败：' + String(e)))
+      .finally(() => setAgentBusy(false))
+  }
+
+  const installAgent = (entry: AgentEntry): void => {
+    setAgentBusy(true)
+    void (async () => {
+      const fetched = await apiPost({ action: 'agent.fetch', account: entry.card.author.accountId, id: entry.card.id })
+      if (fetched?.ok !== true) { setError('拉取失败：' + String(fetched?.error ?? '对端不在线')); return }
+      const done = await apiPost({ action: 'agent.install', pkg: fetched.pkg })
+      if (done?.ok !== true) setError('安装失败：' + ((done?.errors ?? []).map((e: any) => e.message).join('；') || '未知错误'))
+      await refreshAgents()
+    })().catch((e: any) => setError('安装失败：' + String(e))).finally(() => setAgentBusy(false))
+  }
+
+  const uninstallAgent = (entry: AgentEntry): void => {
+    setAgentBusy(true)
+    void apiPost({ action: 'agent.uninstall', account: entry.card.author.accountId, id: entry.card.id })
+      .then((r: any) => { if (r?.ok !== true) setError('卸载失败'); return refreshAgents() })
+      .catch((e: any) => setError('卸载失败：' + String(e)))
+      .finally(() => setAgentBusy(false))
+  }
+
   const setupAccount = (username: string, displayName: string, password: string): void => {
     requestNotif()
     const ws = wsRef.current
@@ -236,6 +311,17 @@ function App(): React.ReactElement {
   const layer = React.createElement(React.Fragment, null,
     React.createElement('style', null, CSS),
     open ? React.createElement(ChatWindow, {
+      mode,
+      onModeChange: setMode,
+      agentView: React.createElement(AgentPanel, {
+        entries: agents,
+        selfAccount: self?.accountId ?? '',
+        busy: agentBusy,
+        onPublish: publishAgent,
+        onInstall: installAgent,
+        onUninstall: uninstallAgent,
+        onClose: () => setMode('chat'),
+      }),
       self, peers, channels, messages, files, sharedFiles, logs, connected, unread, muted, active, activeType, searchResults,
       onSelect: selectConv, onSend: send, onSetName: setName, onSetupAccount: setupAccount, onSetupPsk: setupPsk,
       onSearch: onSearch, onRecall: recall, onEdit: edit, onSendFile: (f, to, toType) => { void sendFile(f, to, toType) },

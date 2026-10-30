@@ -43,6 +43,11 @@ export async function resolveApiHost(): Promise<string> {
   return currentApiHost()
 }
 
+export function apiBase(): string {
+  const proto = window.location.protocol === 'https:' ? 'https:' : 'http:'
+  return `${proto}//${currentApiHost()}${API_ROUTE}`
+}
+
 export function wsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${currentApiHost()}${WS_PATH}`
