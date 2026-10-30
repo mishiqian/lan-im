@@ -111,7 +111,7 @@ export function Launcher(props: { unread: number; onClick: () => void }): React.
   )
 }
 
-export function AccountSetup(props: { onSetup: (username: string, displayName: string, password: string) => void }): React.ReactElement {
+export function AccountSetup(props: { connected: boolean; onSetup: (username: string, displayName: string, password: string) => void }): React.ReactElement {
   const [username, setUsername] = React.useState('')
   const [displayName, setDisplayName] = React.useState('')
   const [password, setPassword] = React.useState('')
@@ -137,6 +137,7 @@ export function AccountSetup(props: { onSetup: (username: string, displayName: s
       React.createElement('label', null, '密码（可选）'),
       React.createElement('input', { className: 'lim-input', type: 'password', value: password, placeholder: '留空则不设密码', onChange: (e: any) => setPassword(e.target.value), onKeyDown: (e: any) => { if (e.key === 'Enter') submit() } }),
     ),
+    props.connected ? null : React.createElement('div', { className: 'lim-setup-hint lim-warn' }, '宿主未连接，正在自动重连……连不上时点按钮不会有反应'),
     React.createElement('button', { className: 'lim-send lim-cta', onClick: submit }, '创建账号'),
   )
 }
@@ -628,7 +629,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
       React.createElement('button', { className: 'lim-iconbtn', title: '关闭', onClick: props.onClose }, '✕'),
     ),
     needSetup
-      ? React.createElement(AccountSetup, { onSetup: props.onSetupAccount })
+      ? React.createElement(AccountSetup, { connected, onSetup: props.onSetupAccount })
       : React.createElement(React.Fragment, null,
           React.createElement('div', { className: 'lim-statusbar' },
             React.createElement('button', { className: 'lim-selfname', title: '个人中心', onClick: () => setShowProfile(true) }, `我：${self?.name ?? '…'}`),

@@ -5,7 +5,7 @@
  */
 import * as React from 'react'
 import { createPortal } from 'react-dom'
-import { CHUNK_SIZE, type Channel, type ChannelKind, type ChatMessage, type FileInfo, type Peer, type SelfInfo, type SharedFile, type TargetType } from '../protocol.ts'
+import { API_ROUTE, CHUNK_SIZE, type Channel, type ChannelKind, type ChatMessage, type FileInfo, type Peer, type SelfInfo, type SharedFile, type TargetType } from '../protocol.ts'
 import { CSS } from './styles.ts'
 import { requestNotif, wsUrl } from './format.ts'
 import { ChatWindow, Launcher } from './components.ts'
@@ -33,10 +33,12 @@ function App(): React.ReactElement {
   const activeRef = React.useRef('*')
   const activeTypeRef = React.useRef<TargetType>('channel')
   const mutedRef = React.useRef<Set<string>>(new Set())
+  const selfRef = React.useRef<SelfInfo | null>(null)
 
   React.useEffect(() => { openRef.current = open }, [open])
   React.useEffect(() => { activeRef.current = active; activeTypeRef.current = activeType }, [active, activeType])
   React.useEffect(() => { mutedRef.current = muted }, [muted])
+  React.useEffect(() => { selfRef.current = self }, [self])
   React.useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'l') {
@@ -129,7 +131,35 @@ function App(): React.ReactElement {
     if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'send', to, toType, body }))
   }
   const setName = (name: string): void => { const ws = wsRef.current; if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'setName', name })) }
-  const setupAccount = (username: string, displayName: string, password: string): void => { const ws = wsRef.current; if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'setupAccount', username, displayName, password })); requestNotif() }
+  const restSetupAccount = async (username: string, displayName: string, password: string): Promise<void> => {
+    try {
+      const res = await fetch(API_ROUTE, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'setupAccount', username, displayName, password }),
+      })
+      const data = await res.json() as { ok?: boolean; self?: SelfInfo; error?: string }
+      if (data.ok === true && data.self !== undefined) setSelf(data.self)
+      else setError(data.error ?? '创建账号失败：宿主无响应')
+    } catch (err) {
+      setError(`创建账号失败：${String(err)}`)
+    }
+  }
+
+  const setupAccount = (username: string, displayName: string, password: string): void => {
+    requestNotif()
+    const ws = wsRef.current
+    if (ws !== null && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: 'setupAccount', username, displayName, password }))
+      // 半开连接时 send 不会报错但消息到不了；1.5s 内没等到 self 更新就走 REST 兜底
+      window.setTimeout(() => {
+        if ((selfRef.current?.accountId ?? '') === '') void restSetupAccount(username, displayName, password)
+      }, 1500)
+      return
+    }
+    void restSetupAccount(username, displayName, password)
+  }
+
   const setupPsk = (psk: string): void => { const ws = wsRef.current; if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'setupPsk', psk })) }
   const setPassword = (password: string): void => { const ws = wsRef.current; if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'setPassword', password })) }
   const recall = (id: string): void => { const ws = wsRef.current; if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'recall', id })) }

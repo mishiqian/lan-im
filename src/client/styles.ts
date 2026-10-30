@@ -5,7 +5,7 @@
  */
 export const CSS = `
 .lim-window{--lim-bg:var(--dsw-alias-bg-layer-1,#ffffff);--lim-panel:var(--dsw-alias-bg-layer-2,#f6f6f7);--lim-fg:var(--dsw-alias-label-primary,#1c1c1e);--lim-muted:var(--dsw-alias-label-secondary,#6b6b70);--lim-border:var(--dsw-alias-border-l1,rgba(0,0,0,.12));--lim-hover:color-mix(in srgb,var(--dsw-alias-label-primary,#000) 7%,transparent);--lim-active:color-mix(in srgb,var(--lim-accent) 20%,transparent);--lim-accent:#0891B2;--lim-bubble-theirs:color-mix(in srgb,var(--dsw-alias-label-primary,#000) 8%,transparent);--lim-bubble-mine:var(--lim-accent);--lim-danger:var(--dsw-alias-state-error-primary,#dc4a4a);--lim-ok:var(--dsw-alias-state-success-primary,#2ecc71)}
-.lim-window{position:fixed;z-index:99990;width:460px;max-width:calc(100vw - 16px);height:600px;max-height:calc(100vh - 16px);display:flex;flex-direction:column;background:var(--lim-bg);color:var(--lim-fg);border:1px solid var(--lim-border);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.35);overflow:hidden;font-size:14px;line-height:1.5;font-family:inherit}
+.lim-window{position:fixed;z-index:2147483000;width:460px;max-width:calc(100vw - 16px);height:600px;max-height:calc(100vh - 16px);display:flex;flex-direction:column;background:var(--lim-bg);color:var(--lim-fg);border:1px solid var(--lim-border);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.35);overflow:hidden;font-size:14px;line-height:1.5;font-family:inherit}
 .lim-window *{box-sizing:border-box;-webkit-text-fill-color:currentColor}
 .lim-header{display:flex;align-items:center;gap:6px;padding:10px 12px;background:var(--lim-panel);border-bottom:1px solid var(--lim-border);cursor:move;user-select:none;touch-action:none}
 .lim-mark{display:block;flex:none}
@@ -78,7 +78,7 @@ export const CSS = `
 .lim-log{max-height:130px;overflow-y:auto;padding:6px 10px;border-bottom:1px solid var(--lim-border);background:var(--lim-panel);font:11px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace}
 .lim-logline{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--lim-muted)}
 .lim-empty{flex:1;display:grid;place-items:center;color:var(--lim-muted);font-size:13px;text-align:center;padding:16px}
-.lim-launcher{position:fixed;right:20px;bottom:20px;z-index:99980;width:48px;height:48px;border:none;border-radius:50%;background:var(--lim-accent);color:#fff;font-size:20px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.3);display:grid;place-items:center}
+.lim-launcher{position:fixed;right:20px;bottom:20px;z-index:2147483001;width:48px;height:48px;border:none;border-radius:50%;background:var(--lim-accent);color:#fff;font-size:20px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.3);display:grid;place-items:center}
 .lim-launcher:hover{filter:brightness(1.08)}
 .lim-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--lim-danger);color:#fff;font-size:11px;line-height:18px;text-align:center;font-weight:700}
 .lim-setup{flex:1;display:flex;flex-direction:column;gap:12px;padding:20px;overflow-y:auto}
@@ -86,6 +86,7 @@ export const CSS = `
 .lim-cta{align-self:flex-end;padding:9px 18px;font-weight:700}
 .lim-setup-title{font-size:16px;font-weight:700}
 .lim-setup-hint{font-size:12px;color:var(--lim-muted)}
+.lim-warn{color:var(--lim-danger)}
 .lim-field{display:flex;flex-direction:column;gap:4px}
 .lim-field label{font-size:12px;color:var(--lim-muted)}
 .lim-settings{flex:none;max-height:200px;overflow-y:auto;padding:10px 12px;border-bottom:1px solid var(--lim-border);background:var(--lim-panel);display:flex;flex-direction:column;gap:8px}
