@@ -9,12 +9,19 @@ export class ClientHub {
   readonly log: string[] = []
   private readonly clients = new Set<WebSocket>()
 
+  /** 当前挂着的浏览器客户端数量（诊断用）。 */
+  get count(): number {
+    return this.clients.size
+  }
+
   attach(ws: WebSocket): void {
+    const isNew = !this.clients.has(ws)
     this.clients.add(ws)
+    if (isNew) this.logEvent('浏览器客户端已连接')
   }
 
   detach(ws: WebSocket): void {
-    this.clients.delete(ws)
+    if (this.clients.delete(ws)) this.logEvent('浏览器客户端已断开')
   }
 
   send(ws: WebSocket, payload: unknown): void {

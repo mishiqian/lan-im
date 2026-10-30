@@ -168,6 +168,7 @@ export class HttpGateway {
               channels: this.runtime.channelRegistry.list(),
               messages: this.runtime.messageStore.messages.slice(-HISTORY_LIMIT),
               sharedFiles: this.runtime.sharedFileStore.list(),
+              clients: this.runtime.clients.count,
               log: this.runtime.clients.log,
             })
           } catch (err: any) {
