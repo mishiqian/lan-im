@@ -10,6 +10,7 @@ export const CSS = `
 .lim-header{display:flex;align-items:center;gap:6px;padding:10px 12px;background:var(--lim-panel);border-bottom:1px solid var(--lim-border);cursor:move;user-select:none;touch-action:none}
 .lim-dot{font-size:16px;line-height:1}
 .lim-title{font-weight:700;font-size:14px}
+.lim-ver{font-size:10px;color:var(--lim-muted);opacity:.75;letter-spacing:.02em}
 .lim-count{font-size:12px;color:var(--lim-muted);flex:1;text-align:right}
 .lim-iconbtn{border:none;background:transparent;color:var(--lim-muted);cursor:pointer;font-size:15px;line-height:1;padding:3px 6px;border-radius:6px}
 .lim-iconbtn:hover{background:var(--lim-hover);color:var(--lim-fg)}

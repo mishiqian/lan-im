@@ -1,3 +1,5 @@
+declare const __LANIM_VERSION__: string
+
 /**
  * 客户端 UI 组件：联系人/消息/文件气泡、悬浮球、账号设置、聊天主窗口。
  */
@@ -580,6 +582,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     React.createElement('div', { className: 'lim-header', onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp, onPointerCancel: onHeaderPointerUp },
       React.createElement('span', { className: 'lim-dot' }, '💬'),
       React.createElement('span', { className: 'lim-title' }, '局域网聊天'),
+      React.createElement('span', { className: 'lim-ver', title: '插件版本' }, __LANIM_VERSION__),
       React.createElement('span', { className: 'lim-count' }, `${accounts.length + 1} 在线`),
       React.createElement('button', { className: 'lim-iconbtn', title: '搜索', onClick: () => { setShowSearch((s) => !s); if (showSearch) { setSearchKeyword(''); props.onSearch('') } } }, '🔍'),
       React.createElement('button', { className: 'lim-iconbtn', title: '诊断日志', onClick: () => setShowLog((s) => !s) }, '🛠'),

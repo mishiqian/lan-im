@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs'
+
 const id = '@mishiqian/lan-im'
+const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
 const platformModules = [
-  '@deepseek-ai/dsh-client-runtime/client',
   'react',
   'react-dom',
   'react-dom/client',
@@ -24,6 +26,7 @@ export default [{
   dts: false,
   sourcemap: true,
   clean: false,
+  define: { __LANIM_VERSION__: JSON.stringify('v' + version) },
   deps: {
     neverBundle: platformModules,
     alwaysBundle: (id) => platformModules.includes(id) ? undefined : true,
