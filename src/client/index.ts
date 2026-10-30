@@ -4,6 +4,7 @@
  * 落位交给 Slot 系统（shell.overlay），不再自建 DOM 容器或往顶栏塞按钮。
  */
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { CHUNK_SIZE, type Channel, type ChannelKind, type ChatMessage, type FileInfo, type Peer, type SelfInfo, type SharedFile, type TargetType } from '../protocol.ts'
 import { CSS } from './styles.ts'
 import { requestNotif, wsUrl } from './format.ts'
@@ -181,7 +182,7 @@ function App(): React.ReactElement {
 
   const totalUnread = Object.values(unread).reduce<number>((a, b) => a + (b as number), 0)
 
-  return React.createElement(React.Fragment, null,
+  const layer = React.createElement(React.Fragment, null,
     React.createElement('style', null, CSS),
     open ? React.createElement(ChatWindow, {
       self, peers, channels, messages, files, sharedFiles, logs, connected, unread, muted, active, activeType, searchResults,
@@ -198,6 +199,15 @@ function App(): React.ReactElement {
     }) : null,
     !open ? React.createElement(Launcher, { unread: totalUnread, onClick: () => { requestNotif(); setOpen(true) } }) : null,
   )
+
+  /**
+   * 挂到 body 而不是留在 shell.overlay 的容器里：
+   * 宿主把 overlay 条目包进 `position:absolute; z-index:20` 的层，那层本身是
+   * stacking context，条目内部再大的 z-index 也逃不出去，于是任何 modal mask
+   * （引导弹窗、设置对话框）都能盖住悬浮按钮并吞掉点击。
+   * createPortal 仍然由 React 管理生命周期，只是把 DOM 放到 body 下。
+   */
+  return createPortal(layer, document.body) as unknown as React.ReactElement
 }
 
 /**
