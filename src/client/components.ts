@@ -7,15 +7,75 @@ import * as React from 'react'
 import type { Channel, ChannelKind, ChatMessage, FileInfo, Peer, SelfInfo, SharedFile, TargetType } from '../protocol.ts'
 import { formatSize, formatTime, isDark } from './format.ts'
 
+/**
+ * 统一图标集：24 网格、1.8 描边、currentColor。
+ * 全窗只用这一套（V3：不用 ◆ ✦ → 之类的字符凑图标，也不用 emoji）。
+ */
+const ICON_PATHS: Record<string, React.ReactNode> = {
+  search: React.createElement(React.Fragment, null,
+    React.createElement('circle', { cx: 11, cy: 11, r: 7 }),
+    React.createElement('path', { d: 'm16.5 16.5 4.5 4.5' })),
+  activity: React.createElement('path', { d: 'M3 12h3.5l2.5-7 4 14 2.5-7H21' }),
+  settings: React.createElement(React.Fragment, null,
+    React.createElement('circle', { cx: 12, cy: 12, r: 3 }),
+    React.createElement('path', { d: 'M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z' })),
+  close: React.createElement('path', { d: 'M6 6l12 12M18 6 6 18' }),
+  bell: React.createElement(React.Fragment, null,
+    React.createElement('path', { d: 'M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8' }),
+    React.createElement('path', { d: 'M10.3 21a2 2 0 0 0 3.4 0' })),
+  bellOff: React.createElement(React.Fragment, null,
+    React.createElement('path', { d: 'M13.7 21a2 2 0 0 1-3.4 0' }),
+    React.createElement('path', { d: 'M18.6 13.4c-.4-1.4-.6-3.2-.6-5.4a6 6 0 0 0-9.3-5' }),
+    React.createElement('path', { d: 'M6 8c0 5-2 6-2 6h11' }),
+    React.createElement('path', { d: 'M3 3l18 18' })),
+  paperclip: React.createElement('path', { d: 'M21 12.5 12.6 21a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9' }),
+  download: React.createElement(React.Fragment, null,
+    React.createElement('path', { d: 'M12 3v12' }),
+    React.createElement('path', { d: 'm7 11 5 5 5-5' }),
+    React.createElement('path', { d: 'M4 20h16' })),
+  plus: React.createElement('path', { d: 'M12 5v14M5 12h14' }),
+  hash: React.createElement('path', { d: 'M9 3 7 21M17 3l-2 18M4 8.5h16M3 15.5h16' }),
+  lock: React.createElement(React.Fragment, null,
+    React.createElement('rect', { x: 4, y: 10, width: 16, height: 11, rx: 2 }),
+    React.createElement('path', { d: 'M8 10V7a4 4 0 0 1 8 0v3' })),
+  users: React.createElement(React.Fragment, null,
+    React.createElement('circle', { cx: 9, cy: 8, r: 3.5 }),
+    React.createElement('path', { d: 'M2.5 20a6.5 6.5 0 0 1 13 0' }),
+    React.createElement('path', { d: 'M16 5.2a3.5 3.5 0 0 1 0 6.6' }),
+    React.createElement('path', { d: 'M18 14.4A6.5 6.5 0 0 1 21.5 20' })),
+  file: React.createElement(React.Fragment, null,
+    React.createElement('path', { d: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z' }),
+    React.createElement('path', { d: 'M14 3v5h5' })),
+  upload: React.createElement(React.Fragment, null,
+    React.createElement('path', { d: 'M12 19V5' }),
+    React.createElement('path', { d: 'm6 11 6-6 6 6' })),
+}
+
+export function Icon(props: { name: keyof typeof ICON_PATHS & string; size?: number }): React.ReactElement {
+  return React.createElement('svg', {
+    width: props.size ?? 16,
+    height: props.size ?? 16,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+  }, ICON_PATHS[props.name] ?? null)
+}
+
 export function ContactItem(props: { icon: string; name: string; active: boolean; unread: number; muted: boolean; onClick: () => void; onLeave?: () => void; onManage?: () => void }): React.ReactElement {
   return React.createElement('div',
     { className: 'lim-contact' + (props.active ? ' on' : ''), onClick: props.onClick },
-    React.createElement('span', { className: props.icon === 'dot' ? 'lim-cdot' : 'lim-cicon' }, props.icon === 'dot' ? '' : props.icon),
+    props.icon === 'dot'
+      ? React.createElement('span', { className: 'lim-cdot' })
+      : React.createElement('span', { className: 'lim-cicon' }, React.createElement(Icon, { name: props.icon, size: 15 })),
     React.createElement('span', { className: 'lim-contact-name', title: props.name }, props.name),
-    props.muted ? React.createElement('span', { className: 'lim-contact-mute' }, '🔕') : null,
+    props.muted ? React.createElement('span', { className: 'lim-contact-mute' }, React.createElement(Icon, { name: 'bellOff', size: 13 })) : null,
     props.unread > 0 ? React.createElement('span', { className: 'lim-contact-badge' }, props.unread > 99 ? '99+' : String(props.unread)) : null,
-    props.onManage !== undefined ? React.createElement('span', { className: 'lim-channel-act', title: '频道管理', onClick: (e: any) => { e.stopPropagation(); props.onManage?.() } }, '⚙') : null,
-    props.onLeave !== undefined ? React.createElement('span', { className: 'lim-channel-x', title: '离开频道', onClick: (e: any) => { e.stopPropagation(); props.onLeave?.() } }, '✕') : null,
+    props.onManage !== undefined ? React.createElement('span', { className: 'lim-channel-act', title: '频道管理', onClick: (e: any) => { e.stopPropagation(); props.onManage?.() } }, React.createElement(Icon, { name: 'settings', size: 13 })) : null,
+    props.onLeave !== undefined ? React.createElement('span', { className: 'lim-channel-x', title: '离开频道', onClick: (e: any) => { e.stopPropagation(); props.onLeave?.() } }, React.createElement(Icon, { name: 'close', size: 13 })) : null,
   )
 }
 
@@ -56,12 +116,12 @@ export function FileBubble(props: { file: FileInfo; selfAccountId: string }): Re
           ),
         )
       : React.createElement(React.Fragment, null,
-          React.createElement('span', { className: 'lim-file-icon' }, '📄'),
+          React.createElement('span', { className: 'lim-file-icon' }, React.createElement(Icon, { name: 'file', size: 16 })),
           React.createElement('div', { className: 'lim-file-meta' },
             React.createElement('div', { className: 'lim-file-name' }, props.file.name),
             React.createElement('div', { className: 'lim-file-size' }, `${props.file.fromName} · ${formatSize(props.file.size)}`),
           ),
-          React.createElement('a', { className: 'lim-file-dl', href: url, download: props.file.name, title: '下载' }, '⬇'),
+          React.createElement('a', { className: 'lim-file-dl', href: url, download: props.file.name, title: '下载', 'aria-label': '下载' }, React.createElement(Icon, { name: 'download', size: 15 })),
         ),
   )
 }
@@ -110,6 +170,16 @@ export function Launcher(props: { unread: number; onClick: () => void }): React.
     props.unread > 0 ? React.createElement('span', { className: 'lim-badge' }, props.unread > 99 ? '99+' : String(props.unread)) : null,
   )
 }
+
+const EmptyArt = (): React.ReactElement => React.createElement('svg', {
+  className: 'lim-empty-art', width: 72, height: 56, viewBox: '0 0 72 56', fill: 'none',
+  stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true',
+},
+  React.createElement('path', { d: 'M10 8h52a8 8 0 0 1 8 8v18a8 8 0 0 1-8 8H34l-14 10v-10H10a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8Z' }),
+  React.createElement('circle', { cx: 26, cy: 25, r: 3.5 }),
+  React.createElement('circle', { cx: 46, cy: 25, r: 3.5 }),
+  React.createElement('path', { d: 'M29.5 25h13' }),
+)
 
 export function AccountSetup(props: { connected: boolean; onSetup: (username: string, displayName: string, password: string) => void }): React.ReactElement {
   const [username, setUsername] = React.useState('')
@@ -183,7 +253,7 @@ export function ProfileCenter(props: { self: SelfInfo; peersCount: number; chann
           React.createElement('div', { className: 'lim-profile-name' }, self.name || self.accountId || '未设置'),
           React.createElement('div', { className: 'lim-profile-account' }, `@${self.accountId || '未设置账号'}`),
         ),
-        React.createElement('button', { className: 'lim-iconbtn', title: '关闭', onClick: props.onClose }, '✕'),
+        React.createElement('button', { className: 'lim-iconbtn', title: '关闭', 'aria-label': '关闭', onClick: props.onClose }, React.createElement(Icon, { name: 'close' })),
       ),
 
       React.createElement('div', { className: 'lim-profile-status' },
@@ -306,7 +376,7 @@ export function SharedFileBubble(props: { file: SharedFile; self: SelfInfo | nul
   return React.createElement('div', { className: 'lim-shared-file' },
     isImage
       ? React.createElement('img', { className: 'lim-shared-img', src: url, alt: f.name })
-      : React.createElement('span', { className: 'lim-shared-icon' }, '📄'),
+      : React.createElement('span', { className: 'lim-shared-icon' }, React.createElement(Icon, { name: 'file', size: 16 })),
     React.createElement('div', { className: 'lim-shared-meta' },
       React.createElement('div', { className: 'lim-shared-name', title: f.name }, f.name),
       React.createElement('div', { className: 'lim-shared-sub' }, `${f.ownerAccount || '?'} · ${formatSize(f.size)}${mine ? ' · 上传者' : ' · 缓存/按需拉取'}`),
@@ -493,16 +563,23 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
           className: 'lim-input', value: searchKeyword, placeholder: '搜索历史消息…', autoFocus: true,
           onChange: (e: any) => { setSearchKeyword(e.target.value); props.onSearch(e.target.value) },
         }),
-        React.createElement('button', { className: 'lim-iconbtn', onClick: () => { setShowSearch(false); setSearchKeyword(''); props.onSearch('') } }, '✕'),
+        React.createElement('button', { className: 'lim-iconbtn', 'aria-label': '关闭搜索', onClick: () => { setShowSearch(false); setSearchKeyword(''); props.onSearch('') } }, React.createElement(Icon, { name: 'close', size: 15 })),
       )
     : null
 
   const messageList = showSearch && searchResults !== null
     ? (searchResults.length === 0
-        ? React.createElement('div', { className: 'lim-empty' }, '无匹配消息')
+        ? React.createElement('div', { className: 'lim-empty' },
+            React.createElement('div', { className: 'lim-empty-title' }, '没有匹配的消息'),
+            React.createElement('div', { className: 'lim-empty-hint' }, '换个关键词试试，只搜索本机保存的历史'),
+          )
         : searchResults.map((m) => React.createElement(MessageBubble, { key: m.id, message: m, selfAccountId: self?.accountId ?? '', onRecall: props.onRecall, onEdit: (id) => { setEditingId(id); setDraft(m.body) } })))
     : (merged.length === 0
-        ? React.createElement('div', { className: 'lim-empty' }, activeType === 'channel' ? '还没有消息' : '还没有私聊消息')
+        ? React.createElement('div', { className: 'lim-empty' },
+          React.createElement(EmptyArt, null),
+          React.createElement('div', { className: 'lim-empty-title' }, activeType === 'channel' ? '这个频道还没有消息' : '还没有私聊消息'),
+          React.createElement('div', { className: 'lim-empty-hint' }, activeType === 'channel' ? '说点什么，同一局域网内装了本插件的实例都会收到' : '从左侧选一个人，开始第一次对话'),
+        )
         : merged.map((item) => {
             if (item._file === true) {
               return React.createElement(FileBubble, { key: item.f.id, file: item.f, selfAccountId: self?.accountId ?? '' })
@@ -511,14 +588,18 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
           }))
 
   const fileList = activeType !== 'channel' || channelShared.length === 0
-    ? React.createElement('div', { className: 'lim-empty' }, activeType === 'channel' ? '频道还没有共享文件' : '私聊没有共享文件空间')
+    ? React.createElement('div', { className: 'lim-empty' },
+          React.createElement(EmptyArt, null),
+          React.createElement('div', { className: 'lim-empty-title' }, activeType === 'channel' ? '频道还没有共享文件' : '私聊没有共享文件空间'),
+          React.createElement('div', { className: 'lim-empty-hint' }, activeType === 'channel' ? '把文件上传到这里，成员按需拉取，不经过任何云端' : '私聊暂不支持共享文件空间'),
+        )
     : React.createElement('div', { className: 'lim-shared-list' },
         channelShared.map((f) => React.createElement(SharedFileBubble, { key: f.id, file: f, self, onRemove: props.onRemoveSharedFile })),
       )
 
   const inputBar = needSetup || activeTab === 'files' ? null : React.createElement('div', { className: 'lim-inputbar' },
     React.createElement('label', { className: 'lim-attach', title: '发送文件' },
-      '📎',
+      React.createElement(Icon, { name: 'paperclip', size: 17 }),
       React.createElement('input', { ref: fileRef, type: 'file', style: { display: 'none' }, onChange: (e: any) => { const f = e.target.files?.[0]; if (f) props.onSendFile(f, active, activeType); e.target.value = '' } }),
     ),
     React.createElement('input', {
@@ -534,16 +615,12 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
 
   const fileToolbar = needSetup || activeTab !== 'files' ? null : React.createElement('div', { className: 'lim-inputbar' },
     React.createElement('label', { className: 'lim-attach', title: '上传到频道共享空间' },
-      '📤',
+      React.createElement(Icon, { name: 'upload', size: 17 }),
       React.createElement('input', { ref: sharedFileRef, type: 'file', style: { display: 'none' }, onChange: (e: any) => { const f = e.target.files?.[0]; if (f && activeType === 'channel') props.onSendSharedFile(f, active); e.target.value = '' } }),
     ),
     React.createElement('div', { className: 'lim-shared-hint' }, activeType === 'channel' ? `上传到「${activeChannel?.name ?? active}」共享空间` : ''),
   )
 
-  const tabBar = activeType === 'channel' ? React.createElement('div', { className: 'lim-tabs' },
-    React.createElement('button', { className: 'lim-tab' + (activeTab === 'messages' ? ' on' : ''), onClick: () => setActiveTab('messages') }, '消息'),
-    React.createElement('button', { className: 'lim-tab' + (activeTab === 'files' ? ' on' : ''), onClick: () => setActiveTab('files') }, '文件'),
-  ) : null
 
   const manageModal = showManageModal && activeChannel !== undefined
     ? React.createElement('div', { className: 'lim-modal' },
@@ -572,7 +649,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
             React.createElement('div', { className: 'lim-member-list' },
               (activeChannel.members ?? []).map((m) => React.createElement('div', { className: 'lim-member', key: m },
                 React.createElement('span', null, m),
-                m !== activeChannel.createdBy ? React.createElement('button', { className: 'lim-iconbtn', title: '移除成员', onClick: () => props.onRemoveMember(activeChannel.id, m) }, '✕') : React.createElement('span', { className: 'lim-member-owner' }, '创建者'),
+                m !== activeChannel.createdBy ? React.createElement('button', { className: 'lim-iconbtn', title: '移除成员', 'aria-label': '移除成员', onClick: () => props.onRemoveMember(activeChannel.id, m) }, React.createElement(Icon, { name: 'close', size: 14 })) : React.createElement('span', { className: 'lim-member-owner' }, '创建者'),
               )),
             ),
           ) : null,
@@ -616,68 +693,121 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
       )
     : null
 
+  const meName = self?.name ?? '…'
+  const meInitials = (meName === '' ? '?' : meName).slice(0, 2).toUpperCase()
+
   return React.createElement('div',
-    { className: 'lim-window' + (dark ? ' lim-dark' : ' lim-light'), style: { left: pos.x, top: pos.y, width: size.w, height: size.h }, ref: rootRef },
+    { className: 'lim-window', style: { left: pos.x, top: pos.y, width: size.w, height: size.h }, ref: rootRef },
     React.createElement('div', { className: 'lim-header', onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp, onPointerCancel: onHeaderPointerUp },
-      React.createElement(LanImMark, { size: 18, tile: '#0891B2' }),
+      React.createElement(LanImMark, { size: 20, tile: '#0891B2' }),
       React.createElement('span', { className: 'lim-title' }, '局域网聊天'),
       React.createElement('span', { className: 'lim-ver', title: '插件版本' }, __LANIM_VERSION__),
-      React.createElement('span', { className: 'lim-count' }, `${accounts.length + 1} 在线`),
-      React.createElement('button', { className: 'lim-iconbtn', title: '搜索', onClick: () => { setShowSearch((s) => !s); if (showSearch) { setSearchKeyword(''); props.onSearch('') } } }, '🔍'),
-      React.createElement('button', { className: 'lim-iconbtn', title: '诊断日志', onClick: () => setShowLog((s) => !s) }, '🛠'),
-      React.createElement('button', { className: 'lim-iconbtn', title: '个人中心', onClick: () => setShowProfile(true) }, '⚙'),
-      React.createElement('button', { className: 'lim-iconbtn', title: '关闭', onClick: props.onClose }, '✕'),
+      React.createElement('span', {
+        className: 'lim-count' + (connected ? '' : ' off'),
+        title: connected ? '已连接宿主' : '与宿主断开，正在重连',
+      }, connected ? `${accounts.length + 1} 在线` : '离线'),
+      React.createElement('div', { className: 'lim-actions' },
+        React.createElement('button', {
+          className: 'lim-iconbtn', title: '搜索消息', 'aria-label': '搜索消息', 'aria-pressed': showSearch,
+          onClick: () => { setShowSearch((v) => !v); if (showSearch) { setSearchKeyword(''); props.onSearch('') } },
+        }, React.createElement(Icon, { name: 'search' })),
+        React.createElement('button', {
+          className: 'lim-iconbtn', title: '诊断日志', 'aria-label': '诊断日志', 'aria-pressed': showLog,
+          onClick: () => setShowLog((v) => !v),
+        }, React.createElement(Icon, { name: 'activity' })),
+        React.createElement('button', {
+          className: 'lim-iconbtn', title: '个人中心', 'aria-label': '个人中心',
+          onClick: () => setShowProfile(true),
+        }, React.createElement(Icon, { name: 'settings' })),
+        React.createElement('button', {
+          className: 'lim-iconbtn', title: '关闭（Esc）', 'aria-label': '关闭聊天窗',
+          onClick: props.onClose,
+        }, React.createElement(Icon, { name: 'close' })),
+      ),
     ),
     needSetup
       ? React.createElement(AccountSetup, { connected, onSetup: props.onSetupAccount })
       : React.createElement(React.Fragment, null,
-          React.createElement('div', { className: 'lim-statusbar' },
-            React.createElement('button', { className: 'lim-selfname', title: '个人中心', onClick: () => setShowProfile(true) }, `我：${self?.name ?? '…'}`),
-            React.createElement('span', { className: 'lim-ip' }, self?.accountId ?? ''),
-            React.createElement('span', { className: 'lim-link' + (connected ? '' : ' off'), title: connected ? '已连接宿主' : '重连中…' }, connected ? '●' : '○'),
-            React.createElement('span', { className: 'lim-link', title: muted.has(active) ? '已静音，点击取消' : '点击静音当前会话', style: { cursor: 'pointer' }, onClick: () => props.onToggleMute(active) }, muted.has(active) ? '🔕' : '🔔'),
-          ),
-          showLog ? React.createElement('div', { className: 'lim-log' }, logs.length === 0 ? React.createElement('div', { className: 'lim-logline' }, '暂无诊断日志') : logs.map((line, i) => React.createElement('div', { className: 'lim-logline', key: i }, line))) : null,
+          showLog
+            ? React.createElement('div', { className: 'lim-log' },
+                logs.length === 0
+                  ? React.createElement('div', { className: 'lim-logline' }, '暂无诊断日志')
+                  : logs.map((line, i) => React.createElement('div', { className: 'lim-logline', key: i }, line)))
+            : null,
           searchInput,
-          tabBar,
           React.createElement('div', { className: 'lim-body' },
             React.createElement('div', { className: 'lim-contacts' },
-              React.createElement('div', { className: 'lim-contacts-group' }, '频道'),
-              React.createElement(ContactItem, { icon: '👥', name: '公共频道', active: active === '*' && activeType === 'channel', unread: unread['*'] ?? 0, muted: muted.has('*'), onClick: () => props.onSelect('*', 'channel') }),
-              channels.filter((c) => c.id !== '*').map((c) => c.joined === false
-                ? React.createElement(ContactItem, {
-                    key: c.id,
-                    icon: '○',
-                    name: c.name,
-                    active: false,
-                    unread: 0,
-                    muted: false,
-                    onClick: () => { props.onJoinChannel(c.id); props.onSelect(c.id, 'channel') },
-                  })
-                : React.createElement(ContactItem, {
-                    key: c.id,
-                    icon: c.kind === 'private' ? '🔒' : '#',
-                    name: c.name,
-                    active: active === c.id && activeType === 'channel',
-                    unread: unread[c.id] ?? 0,
-                    muted: muted.has(c.id),
-                    onClick: () => props.onSelect(c.id, 'channel'),
-                    onManage: () => { props.onSelect(c.id, 'channel'); setShowManageModal(true) },
-                    onLeave: () => { props.onLeaveChannel(c.id); if (active === c.id && activeType === 'channel') props.onSelect('*', 'channel') },
-                  })),
-              React.createElement('div', { className: 'lim-contact', style: { color: 'var(--lim-muted)' }, onClick: () => setShowChannelModal(true) },
-                React.createElement('span', { className: 'lim-cicon' }, '＋'),
-                React.createElement('span', { className: 'lim-contact-name' }, '新建频道'),
+              React.createElement('div', { className: 'lim-contacts-scroll' },
+                React.createElement('div', { className: 'lim-contacts-group' }, '频道'),
+                React.createElement(ContactItem, { icon: 'users', name: '公共频道', active: active === '*' && activeType === 'channel', unread: unread['*'] ?? 0, muted: muted.has('*'), onClick: () => props.onSelect('*', 'channel') }),
+                channels.filter((c) => c.id !== '*').map((c) => c.joined === false
+                  ? React.createElement(ContactItem, {
+                      key: c.id,
+                      icon: 'plus',
+                      name: c.name,
+                      active: false,
+                      unread: 0,
+                      muted: false,
+                      onClick: () => { props.onJoinChannel(c.id); props.onSelect(c.id, 'channel') },
+                    })
+                  : React.createElement(ContactItem, {
+                      key: c.id,
+                      icon: c.kind === 'private' ? 'lock' : 'hash',
+                      name: c.name,
+                      active: active === c.id && activeType === 'channel',
+                      unread: unread[c.id] ?? 0,
+                      muted: muted.has(c.id),
+                      onClick: () => props.onSelect(c.id, 'channel'),
+                      onManage: () => { props.onSelect(c.id, 'channel'); setShowManageModal(true) },
+                      onLeave: () => { props.onLeaveChannel(c.id); if (active === c.id && activeType === 'channel') props.onSelect('*', 'channel') },
+                    })),
+                React.createElement('button', { className: 'lim-newchannel', onClick: () => setShowChannelModal(true) },
+                  React.createElement('span', { className: 'lim-cicon' }, React.createElement(Icon, { name: 'plus', size: 15 })),
+                  '新建频道',
+                ),
+                React.createElement('div', { className: 'lim-contacts-group' }, '私聊'),
+                accounts.length === 0
+                  ? React.createElement('div', { className: 'lim-contact', style: { color: 'var(--lim-faint)', cursor: 'default' } },
+                      React.createElement('span', { className: 'lim-contact-name' }, '同一局域网暂时没人'),
+                    )
+                  : accounts.map((p) => React.createElement(ContactItem, { key: p.accountId, icon: 'dot', name: p.name || p.accountId, active: active === p.accountId && activeType === 'account', unread: unread[p.accountId] ?? 0, muted: muted.has(p.accountId), onClick: () => props.onSelect(p.accountId, 'account') })),
               ),
-              React.createElement('div', { className: 'lim-contacts-group' }, '私聊'),
-              accounts.map((p) => React.createElement(ContactItem, { key: p.accountId, icon: 'dot', name: p.name || p.accountId, active: active === p.accountId && activeType === 'account', unread: unread[p.accountId] ?? 0, muted: muted.has(p.accountId), onClick: () => props.onSelect(p.accountId, 'account') })),
+              React.createElement('div', { className: 'lim-me' },
+                React.createElement('span', { className: 'lim-me-avatar' }, meInitials),
+                React.createElement('span', { className: 'lim-me-name', title: '个人中心' },
+                  meName,
+                  React.createElement('span', { className: 'lim-me-id' }, `@${self?.accountId ?? ''}`),
+                ),
+                React.createElement('button', {
+                  className: 'lim-iconbtn', title: muted.has(active) ? '取消静音当前会话' : '静音当前会话',
+                  'aria-label': '静音当前会话', 'aria-pressed': muted.has(active),
+                  onClick: () => props.onToggleMute(active),
+                }, React.createElement(Icon, { name: muted.has(active) ? 'bellOff' : 'bell', size: 15 })),
+                React.createElement('span', {
+                  className: 'lim-me-dot' + (connected ? '' : ' off'),
+                  title: connected ? '已连接宿主' : '与宿主断开',
+                }),
+              ),
             ),
             React.createElement('div', { className: 'lim-thread' },
-              activeType === 'channel' ? React.createElement('div', { className: 'lim-thread-title' },
-                React.createElement('span', { className: 'lim-thread-name' }, activeChannel ? `${activeChannel.kind === 'private' ? '🔒 ' : ''}${activeChannel.name}` : ''),
-                activeChannel?.description ? React.createElement('span', { className: 'lim-thread-desc' }, activeChannel.description) : null,
-                activeChannel !== undefined && activeChannel.id !== '*' ? React.createElement('button', { className: 'lim-iconbtn', title: '频道管理', onClick: () => setShowManageModal(true) }, '⚙') : null,
-              ) : null,
+              React.createElement('div', { className: 'lim-thread-title' },
+                React.createElement('span', { className: 'lim-cicon' },
+                  React.createElement(Icon, { name: activeType === 'account' ? 'users' : (activeChannel?.kind === 'private' ? 'lock' : 'hash'), size: 15 })),
+                React.createElement('span', { className: 'lim-thread-name' },
+                  activeType === 'account'
+                    ? (accounts.find((a) => a.accountId === active)?.name || active)
+                    : (activeChannel?.name ?? '')),
+                activeType === 'channel' && activeChannel?.description
+                  ? React.createElement('span', { className: 'lim-thread-desc' }, activeChannel.description)
+                  : React.createElement('span', { className: 'lim-thread-desc' }),
+                activeType === 'channel' ? React.createElement('div', { className: 'lim-seg' },
+                  React.createElement('button', { className: activeTab === 'messages' ? 'on' : '', 'aria-pressed': activeTab === 'messages', onClick: () => setActiveTab('messages') }, '消息'),
+                  React.createElement('button', { className: activeTab === 'files' ? 'on' : '', 'aria-pressed': activeTab === 'files', onClick: () => setActiveTab('files') }, '文件'),
+                ) : null,
+                activeType === 'channel' && activeChannel !== undefined && activeChannel.id !== '*'
+                  ? React.createElement('button', { className: 'lim-iconbtn', title: '频道管理', 'aria-label': '频道管理', onClick: () => setShowManageModal(true) }, React.createElement(Icon, { name: 'settings', size: 15 }))
+                  : null,
+              ),
               React.createElement('div', { className: 'lim-messages', ref: threadRef }, activeTab === 'files' ? fileList : messageList),
               activeTab === 'files' ? fileToolbar : inputBar,
             ),
