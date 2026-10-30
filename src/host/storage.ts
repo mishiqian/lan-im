@@ -1,8 +1,54 @@
-import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { sanitizeFilename } from './util.ts'
 import type { Account, Channel, SharedFile } from '../protocol.ts'
+
+/**
+ * 当前实例所属的 profile 名字。
+ * 数据必须按 profile 隔离：同一台机器上 web / desktop 两个 profile 各跑一个实例时，
+ * 共用一个 nodeId 会互相顶掉 mDNS 广播（Service name is already in use）、账号也会串。
+ */
+let profileKey: string | undefined
+
+function parseProfileFromBaseUrl(baseUrl: string): string | undefined {
+  try {
+    const path = baseUrl.startsWith('file:') ? new URL(baseUrl).pathname : baseUrl
+    const m = /\/profiles\/([^/]+)\/?$/.exec(decodeURIComponent(path))
+    return m?.[1]
+  } catch {
+    return undefined
+  }
+}
+
+/** 从环境变量 / Loader 的 baseUrl / cwd 里尽力认出 profile 名；认不出就不隔离（保持老行为）。 */
+export function resolveProfileKey(ctx?: unknown): string | undefined {
+  // 宿主自带的 profileContext 最准：name 是 profile 名，dir 是它的目录
+  try {
+    const pc = (ctx as { get?: (name: string) => unknown } | undefined)?.get?.('profileContext') as
+      | { name?: unknown; dir?: unknown }
+      | undefined
+    if (pc !== undefined && typeof pc.dir === 'string' && pc.dir !== '') return basename(pc.dir)
+    if (pc !== undefined && typeof pc.name === 'string' && pc.name !== '') return pc.name
+  } catch { /* 没这个服务就继续往下猜 */ }
+  const dir = process.env.DSH_PROFILE_DIR
+  if (dir !== undefined && dir !== '') return basename(dir)
+  const name = process.env.DSH_PROFILE
+  if (name !== undefined && name !== '') return name
+  const baseUrl = (ctx as { loader?: { baseUrl?: string } } | undefined)?.loader?.baseUrl
+  if (typeof baseUrl === 'string') {
+    const fromLoader = parseProfileFromBaseUrl(baseUrl)
+    if (fromLoader !== undefined) return fromLoader
+  }
+  const fromCwd = parseProfileFromBaseUrl(process.cwd())
+  if (fromCwd !== undefined) return fromCwd
+  return undefined
+}
+
+export function setProfileKey(key: string | undefined): void {
+  profileKey = key
+}
 
 export interface StoredConfig {
   nodeId?: string
@@ -17,9 +63,29 @@ export interface StoredConfig {
  * 所有持久化统一收敛到这里：配置、按天历史、outbox、接收文件目录。
  */
 export class Storage {
-  private base(): string {
+  /** 未识别到 profile 时的历史目录（保持兼容）。 */
+  private legacyRoot(): string {
     const base = process.env.DSH_HOME && process.env.DSH_HOME !== '' ? process.env.DSH_HOME : join(homedir(), '.dsh')
     return join(base, 'plugins-data', 'lan-im')
+  }
+
+  private base(): string {
+    if (profileKey === undefined) return this.legacyRoot()
+    return join(this.legacyRoot(), 'profiles', sanitizeFilename(profileKey))
+  }
+
+  /** 首次按 profile 隔离时，把老目录里的账号/历史搬进当前 profile，避免用户以为数据丢了。 */
+  async adoptLegacyData(): Promise<void> {
+    if (profileKey === undefined) return
+    const dir = this.dataDir()
+    if (existsSync(dir)) return
+    const legacy = this.legacyRoot()
+    if (!existsSync(join(legacy, 'config.json'))) return
+    await mkdir(dir, { recursive: true })
+    for (const entry of await readdir(legacy)) {
+      if (entry === 'profiles') continue
+      try { await rename(join(legacy, entry), join(dir, entry)) } catch { /* 搬不动的跳过 */ }
+    }
   }
 
   dataDir(): string { return this.base() }

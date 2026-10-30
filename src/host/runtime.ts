@@ -41,8 +41,10 @@ export class HostRuntime {
   readonly gateway = new HttpGateway(this)
 
   async start(): Promise<void> {
+    await this.storage.adoptLegacyData()
     const config = await this.storage.readConfig()
     await this.storage.ensureDataDir()
+    this.clients.logEvent(`数据目录：${this.storage.dataDir()}`)
     this.self.nodeId = typeof config.nodeId === 'string' && config.nodeId !== '' ? config.nodeId : randomUUID()
     const acct = config.account
     if (acct && typeof acct.username === 'string' && acct.username !== '') {

@@ -17,11 +17,14 @@
  * - host/http-gateway.ts      REST API + 文件下载 + WS 升级
  */
 import { HostRuntime } from './host/runtime.ts'
+import { resolveProfileKey, setProfileKey } from './host/storage.ts'
 import type { WebServer } from './host/http-gateway.ts'
 
 export const inject = ['webServer']
 
 export function apply(ctx: any): void {
+  // 先认 profile：数据目录按 profile 隔离，避免同一台机器上 web / desktop 串账号
+  setProfileKey(resolveProfileKey(ctx))
   const runtime = new HostRuntime()
 
   ctx.effect(() => {
