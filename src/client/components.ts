@@ -67,15 +67,28 @@ export function Icon(props: { name: keyof typeof ICON_PATHS & string; size?: num
 
 export function ContactItem(props: { icon: string; name: string; active: boolean; unread: number; muted: boolean; onClick: () => void; onLeave?: () => void; onManage?: () => void }): React.ReactElement {
   return React.createElement('div',
-    { className: 'lim-contact' + (props.active ? ' on' : ''), onClick: props.onClick },
+    {
+      className: 'lim-contact' + (props.active ? ' on' : ''),
+      role: 'button',
+      tabIndex: 0,
+      'aria-current': props.active ? 'true' : undefined,
+      onClick: props.onClick,
+      onKeyDown: (e: any) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onClick() } },
+    },
     props.icon === 'dot'
       ? React.createElement('span', { className: 'lim-cdot' })
       : React.createElement('span', { className: 'lim-cicon' }, React.createElement(Icon, { name: props.icon, size: 15 })),
     React.createElement('span', { className: 'lim-contact-name', title: props.name }, props.name),
     props.muted ? React.createElement('span', { className: 'lim-contact-mute' }, React.createElement(Icon, { name: 'bellOff', size: 13 })) : null,
     props.unread > 0 ? React.createElement('span', { className: 'lim-contact-badge' }, props.unread > 99 ? '99+' : String(props.unread)) : null,
-    props.onManage !== undefined ? React.createElement('span', { className: 'lim-channel-act', title: '频道管理', onClick: (e: any) => { e.stopPropagation(); props.onManage?.() } }, React.createElement(Icon, { name: 'settings', size: 13 })) : null,
-    props.onLeave !== undefined ? React.createElement('span', { className: 'lim-channel-x', title: '离开频道', onClick: (e: any) => { e.stopPropagation(); props.onLeave?.() } }, React.createElement(Icon, { name: 'close', size: 13 })) : null,
+    props.onManage !== undefined ? React.createElement('button', {
+      className: 'lim-channel-act', title: '频道管理', 'aria-label': '管理频道 ' + props.name,
+      onClick: (e: any) => { e.stopPropagation(); props.onManage?.() },
+    }, React.createElement(Icon, { name: 'settings', size: 13 })) : null,
+    props.onLeave !== undefined ? React.createElement('button', {
+      className: 'lim-channel-x', title: '离开频道', 'aria-label': '离开频道 ' + props.name,
+      onClick: (e: any) => { e.stopPropagation(); props.onLeave?.() },
+    }, React.createElement(Icon, { name: 'close', size: 13 })) : null,
   )
 }
 
@@ -765,12 +778,16 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
                   React.createElement('span', { className: 'lim-cicon' }, React.createElement(Icon, { name: 'plus', size: 15 })),
                   '新建频道',
                 ),
-                React.createElement('div', { className: 'lim-contacts-group' }, '私聊'),
-                accounts.length === 0
-                  ? React.createElement('div', { className: 'lim-contact', style: { color: 'var(--lim-faint)', cursor: 'default' } },
-                      React.createElement('span', { className: 'lim-contact-name' }, '同一局域网暂时没人'),
-                    )
-                  : accounts.map((p) => React.createElement(ContactItem, { key: p.accountId, icon: 'dot', name: p.name || p.accountId, active: active === p.accountId && activeType === 'account', unread: unread[p.accountId] ?? 0, muted: muted.has(p.accountId), onClick: () => props.onSelect(p.accountId, 'account') })),
+              ),
+              React.createElement('div', { className: 'lim-dms' },
+                React.createElement('div', { className: 'lim-contacts-group' }, accounts.length > 0 ? `私聊 · ${accounts.length}` : '私聊'),
+                React.createElement('div', { className: 'lim-dms-scroll' },
+                  accounts.length === 0
+                    ? React.createElement('div', { className: 'lim-contact', style: { color: 'var(--lim-faint)', cursor: 'default' } },
+                        React.createElement('span', { className: 'lim-contact-name' }, '同一局域网暂时没人'),
+                      )
+                    : accounts.map((p) => React.createElement(ContactItem, { key: p.accountId, icon: 'dot', name: p.name || p.accountId, active: active === p.accountId && activeType === 'account', unread: unread[p.accountId] ?? 0, muted: muted.has(p.accountId), onClick: () => props.onSelect(p.accountId, 'account') })),
+                ),
               ),
               React.createElement('div', { className: 'lim-me' },
                 React.createElement('span', { className: 'lim-me-avatar' }, meInitials),

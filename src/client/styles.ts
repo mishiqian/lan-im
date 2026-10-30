@@ -50,22 +50,31 @@ export const CSS = `
 
 /* ---------- 主体 ---------- */
 .lim-body{flex:1;display:flex;min-height:0}
-.lim-contacts{width:208px;flex:none;display:flex;flex-direction:column;background:var(--lim-sidebar);border-right:1px solid var(--lim-border)}
-.lim-contacts-scroll{flex:1;overflow-y:auto;padding:8px}
+.lim-contacts{width:208px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--lim-sidebar);border-right:1px solid var(--lim-border)}
+.lim-dms{flex:none;display:flex;flex-direction:column;min-height:0;max-height:40%;border-top:1px solid var(--lim-border);padding-top:2px}
+.lim-dms .lim-contacts-group{padding:8px 8px 4px}
+.lim-dms-scroll{overflow-y:auto;padding:0 8px 8px}
+.lim-contacts-scroll{flex:1;min-height:0;overflow-y:auto;padding:8px}
+.lim-contacts-scroll::-webkit-scrollbar,.lim-dms-scroll::-webkit-scrollbar,.lim-messages::-webkit-scrollbar{width:8px}
+.lim-contacts-scroll::-webkit-scrollbar-thumb,.lim-dms-scroll::-webkit-scrollbar-thumb,.lim-messages::-webkit-scrollbar-thumb{background:var(--lim-hover);border-radius:4px}
 .lim-contacts-group{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--lim-faint);padding:12px 8px 4px}
 .lim-contacts-group:first-child{padding-top:4px}
 .lim-contact{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:8px;cursor:pointer;color:var(--lim-fg);font-size:13px}
 .lim-contact:hover{background:var(--lim-hover)}
 .lim-contact:focus-visible{outline:2px solid var(--lim-accent);outline-offset:-2px}
-.lim-contact.on{background:var(--lim-accent-weak);color:#fff;font-weight:600}
+.lim-contact.on{background:var(--lim-accent-weak);color:var(--lim-fg);font-weight:600}
+.lim-contact.on .lim-contact-name{color:var(--lim-fg)}
 .lim-cicon{flex:none;display:grid;place-items:center;width:16px;height:16px;color:var(--lim-muted)}
 .lim-contact.on .lim-cicon{color:var(--lim-accent)}
 .lim-cdot{width:6px;height:6px;border-radius:50%;background:var(--lim-ok);flex:none}
 .lim-contact-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lim-contact-badge{flex:none;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--lim-accent-solid);color:var(--lim-on-accent);font-size:10px;line-height:16px;text-align:center;font-weight:600}
 .lim-contact-mute{flex:none;color:var(--lim-faint);display:grid;place-items:center}
+.lim-channel-act{flex:none;display:grid;place-items:center;width:22px;height:22px;border:none;border-radius:6px;background:transparent;color:var(--lim-faint);cursor:pointer;opacity:0}
 .lim-channel-x{flex:none;display:grid;place-items:center;width:22px;height:22px;border:none;border-radius:6px;background:transparent;color:var(--lim-faint);cursor:pointer;opacity:0}
+.lim-contact:hover .lim-channel-act,.lim-contact:focus-within .lim-channel-act,.lim-contact.on .lim-channel-act,
 .lim-contact:hover .lim-channel-x,.lim-contact:focus-within .lim-channel-x{opacity:1}
+.lim-channel-act:hover{background:var(--lim-hover);color:var(--lim-fg)}
 .lim-channel-x:hover{background:var(--lim-hover);color:var(--lim-danger)}
 .lim-newchannel{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;margin-top:2px;border:none;border-radius:8px;background:transparent;color:var(--lim-muted);font:inherit;font-size:13px;cursor:pointer;width:100%}
 .lim-newchannel:hover{background:var(--lim-hover);color:var(--lim-fg)}
