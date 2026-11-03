@@ -16,6 +16,7 @@ import { HttpGateway } from './http-gateway.ts'
 import { AgentRegistry } from './agent-registry.ts'
 import { IdentityStore, TrustStore, handshakePayload, type IdentityFile } from './identity.ts'
 import { AgentService } from './agent-service.ts'
+import { authorizeCall } from './agent-acl.ts'
 import { AgentInstaller } from './agent-install.ts'
 import type { AgentPackage } from '../protocol.ts'
 import { homedir } from 'node:os'
@@ -187,7 +188,7 @@ export class HostRuntime {
   async remoteAgentOpen(account: string, agentId: string): Promise<{ ok: boolean; sessionId?: string; error?: string }> {
     const peer = this.peerNetwork.peersSnapshot().find((p) => p.accountId === account)
     if (peer === undefined) return { ok: false, error: `@${account} 不在线` }
-    if (peer.trusted !== true) this.clients.logEvent(`警告：@${account} 的身份未验证，仍按 ACL 放行`)
+    if (peer.trusted !== true) return { ok: false, error: `@${account} 的身份未通过验证，拒绝调用` }
     const reply = await this.agentCall(peer.nodeId, { t: 'agentOpen', reqId: randomUUID(), agentId, caller: this.self.accountId })
     if (reply === undefined) return { ok: false, error: '对端没有响应（可能离线或未开放调用）' }
     return { ok: reply.ok === true, ...(reply.sessionId ? { sessionId: reply.sessionId } : {}), ...(reply.error ? { error: reply.error } : {}) }
@@ -203,10 +204,17 @@ export class HostRuntime {
   }
 
   /** 作者侧：处理 open —— 校验卡片是否开放调用，再用 preset 或 prompt 落会话 */
-  async handleAgentOpen(fromAccount: string, agentId: string): Promise<{ ok: boolean; sessionId?: string; error?: string }> {
+  async handleAgentOpen(fromAccount: string, agentId: string, verified: boolean): Promise<{ ok: boolean; sessionId?: string; error?: string }> {
     const card = this.agents.myAgents().find((c) => c.id === agentId)
+    const allowed = authorizeCall(
+      { accountId: fromAccount, verified },
+      card === undefined ? undefined : { id: card.id, authorAccountId: card.author.accountId, callable: card.exposure.callable },
+    )
+    if (!allowed.ok) {
+      this.clients.logEvent(`拒绝 ${fromAccount === '' ? '未识别连接' : '@' + fromAccount} 的调用：${allowed.error}`)
+      return { ok: false, error: allowed.error }
+    }
     if (card === undefined) return { ok: false, error: '没有这个 agent' }
-    if (card.exposure.callable !== true) return { ok: false, error: '@' + card.author.accountId + ' 没有开放调用' }
 
     const preset = `${this.self.accountId}-${card.id}`
     const common = {

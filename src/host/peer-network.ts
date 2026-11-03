@@ -4,6 +4,7 @@ import {
   type ChatMessage, type Peer, type PeerSeed, type PeerWireMessage,
 } from '../protocol.ts'
 import type { HostRuntime } from './runtime.ts'
+import { authorizeSessionControl } from './agent-acl.ts'
 import { pskIdFor } from './util.ts'
 
 /**
@@ -53,6 +54,9 @@ export class PeerNetwork {
   private messageToWire(m: ChatMessage): PeerWireMessage {
     return { t: 'msg', id: m.id, from: m.from, fromName: m.fromName, to: m.to, toType: m.toType, body: m.body, ts: m.ts }
   }
+
+  /** 每条连接握手后绑定的账号：调用授权只看这个，不信帧里自称的 caller */
+  private readonly linkedAccounts = new Map<string, string>()
 
   /** 记住每个账号最近一次验证结果；peer 后到也能补上 */
   private readonly identityByAccount = new Map<string, { keyId?: string; trusted: boolean }>()
@@ -229,6 +233,7 @@ export class PeerNetwork {
             this.runtime.sharedFileStore.notifyClients()
           }
           const peerAccount = typeof hello.accountId === 'string' ? hello.accountId : ''
+          if (peerAccount !== '') this.linkedAccounts.set(nodeId, peerAccount)
           void this.runtime.observePeerIdentity({
             accountId: peerAccount, nodeId,
             pubkey: hello.pubkey, keyId: hello.keyId, ts: hello.ts, sig: hello.sig,
@@ -303,6 +308,7 @@ export class PeerNetwork {
     let wire: any
     try { wire = JSON.parse(String(data)) } catch { return }
     if (wire.t === 'helloAck') {
+      if (typeof wire.accountId === 'string' && wire.accountId !== '') this.linkedAccounts.set(nodeId, wire.accountId)
       void this.runtime.observePeerIdentity({
         accountId: String(wire.accountId ?? ''), nodeId: String(wire.nodeId ?? nodeId),
         pubkey: wire.pubkey, keyId: wire.keyId, ts: wire.ts, sig: wire.sig,
@@ -405,14 +411,19 @@ export class PeerNetwork {
     } else if (wire.t === 'agentPkg') {
       this.runtime.resolveAgentPackage(String(wire.reqId ?? ''), wire.pkg)
     } else if (wire.t === 'agentOpen') {
-      void this.runtime.handleAgentOpen(String(wire.caller ?? ''), String(wire.agentId ?? '')).then((r) => {
+      const callerAccount = this.linkedAccounts.get(nodeId) ?? ''
+      const verified = this.peers.get(nodeId)?.trusted === true
+      void this.runtime.handleAgentOpen(callerAccount, String(wire.agentId ?? ''), verified).then((r) => {
         const conn = this.connections.get(nodeId)
         if (conn !== undefined && conn.readyState === WebSocket.OPEN) {
           try { conn.send(JSON.stringify({ t: 'agentOpened', reqId: wire.reqId, ...r })) } catch { /* 忽略 */ }
         }
       })
     } else if (wire.t === 'agentSend') {
-      void this.runtime.agentService.send(String(wire.sessionId ?? ''), String(wire.text ?? '')).then((r) => {
+      const callerAccount = this.linkedAccounts.get(nodeId) ?? ''
+      const sessionId = String(wire.sessionId ?? '')
+      const owned = authorizeSessionControl(callerAccount, this.runtime.agentOwner(sessionId))
+      void (owned.ok ? this.runtime.agentService.send(sessionId, String(wire.text ?? '')) : Promise.resolve({ ok: false, error: owned.error })).then((r) => {
         const conn = this.connections.get(nodeId)
         if (conn !== undefined && conn.readyState === WebSocket.OPEN) {
           try { conn.send(JSON.stringify({ t: 'agentSent', reqId: wire.reqId, ...r })) } catch { /* 忽略 */ }
@@ -421,7 +432,10 @@ export class PeerNetwork {
     } else if (wire.t === 'agentOpened' || wire.t === 'agentSent') {
       this.runtime.resolveAgentReply(String(wire.reqId ?? ''), wire)
     } else if (wire.t === 'agentClose') {
-      void this.runtime.agentService.close(String(wire.sessionId ?? ''))
+      const callerAccount = this.linkedAccounts.get(nodeId) ?? ''
+      const sessionId = String(wire.sessionId ?? '')
+      const owned = authorizeSessionControl(callerAccount, this.runtime.agentOwner(sessionId))
+      if (owned.ok) void this.runtime.agentService.close(sessionId)
     }
   }
 
