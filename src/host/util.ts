@@ -18,6 +18,10 @@ export function json(res: ServerResponse, status: number, body: unknown): void {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
+    // 桌面端页面在 dsh-app://app 上：跨源 POST 需要 CORS，否则 fetch 直接失败
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'POST, GET, OPTIONS',
+    'access-control-allow-headers': 'content-type',
   })
   res.end(JSON.stringify(body))
 }

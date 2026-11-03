@@ -44,6 +44,17 @@ export async function resolveApiHost(): Promise<string> {
 }
 
 export function apiBase(): string {
+  // 桌面端页面在 dsh-app://app 上，window.location.host 是 "app"，
+  // 拼出来的 http://app/... 必然失败。宿主的 transport 才是权威地址，
+  // 而且必须每次读——启动时缓存的那份可能还拿不到。
+  const transport = (window as unknown as { __DSH_TRANSPORT__?: { streamBaseUrl?: string } }).__DSH_TRANSPORT__
+  const base = transport?.streamBaseUrl
+  if (typeof base === 'string' && base !== '') {
+    try {
+      const url = new URL(base, window.location.href)
+      return `${url.origin}${API_ROUTE}`
+    } catch { /* 落到下面的兜底 */ }
+  }
   const proto = window.location.protocol === 'https:' ? 'https:' : 'http:'
   return `${proto}//${currentApiHost()}${API_ROUTE}`
 }

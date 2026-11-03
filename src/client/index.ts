@@ -257,9 +257,31 @@ function App(): React.ReactElement {
 
   const loadBases = async (): Promise<string[]> => {
     try {
-      const r = await apiPost({ action: 'agent.bases' })
-      return r?.ok === true && Array.isArray(r.bases) ? r.bases.map((b: any) => String(b.name)) : []
-    } catch { return [] }
+      let r: any
+      try {
+        r = await apiPost({ action: 'agent.bases' })
+      } catch (first: any) {
+        // 桌面端首次可能还没拿到宿主地址：重解析一次再试
+        await resolveApiHost()
+        try {
+          r = await apiPost({ action: 'agent.bases' })
+        } catch (second: any) {
+          setAgentError(`读不到本机 preset（${apiBase()}）：${String(second?.message ?? second)}`)
+          return []
+        }
+        void first
+      }
+      if (r?.ok !== true) {
+        setAgentError('读不到本机 preset：' + String(r?.error ?? '未知原因'))
+        return []
+      }
+      const names = Array.isArray(r.bases) ? r.bases.map((b: any) => String(b.name)) : []
+      if (names.length === 0) setAgentError('本机 ~/.dsh/.agent-presets 下没有可用的 preset（需要有 agent.cordis.yml）')
+      return names
+    } catch (err: any) {
+      setAgentError('读不到本机 preset：' + String(err?.message ?? err))
+      return []
+    }
   }
 
   const installAgent = (entry: AgentEntry): void => {

@@ -23,6 +23,18 @@ export interface WebServer {
 /**
  * HTTP/WS 网关：客户端 WebSocket 升级、文件下载、REST API。
  */
+const corsPreflight = (req: IncomingMessage, res: ServerResponse): boolean => {
+  if (req.method !== 'OPTIONS') return false
+  res.writeHead(204, {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'POST, GET, OPTIONS',
+    'access-control-allow-headers': 'content-type',
+    'access-control-max-age': '600',
+  })
+  res.end()
+  return true
+}
+
 export class HttpGateway {
   private readonly bridge: ClientBridge
   private clientWss: WebSocketServer | undefined
