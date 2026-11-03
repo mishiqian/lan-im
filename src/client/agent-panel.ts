@@ -4,7 +4,7 @@
  * 只做视图与表单；网络请求由 App 传进来的回调完成，错误也由 App 统一展示。
  */
 import * as React from 'react'
-import type { AgentCard, AgentEntry, AgentToolGrant } from '../protocol.ts'
+import type { AgentCard, AgentEntry, AgentToolGrant, RemoteSessionRecord } from '../protocol.ts'
 import { Icon, LanImMark } from './components.ts'
 
 export interface PublishInput {
@@ -24,6 +24,9 @@ export interface PublishInput {
 export interface AgentPanelProps {
   entries: AgentEntry[]
   loadBases: () => Promise<string[]>
+  /** 作者侧：别人正在用我的 agent 的会话 */
+  sessions: RemoteSessionRecord[]
+  onCloseSession: (remoteId: string) => void
   selfAccount: string
   busy: boolean
   onPublish: (input: PublishInput) => void
@@ -158,6 +161,9 @@ function PublishForm(props: {
   selfAccount: string
   onClose: () => void
   loadBases: () => Promise<string[]>
+  /** 作者侧：别人正在用我的 agent 的会话 */
+  sessions: RemoteSessionRecord[]
+  onCloseSession: (remoteId: string) => void
   onSubmit: (input: PublishInput) => void
 }): React.ReactElement {
   const [name, setName] = React.useState('')
@@ -281,6 +287,24 @@ export function AgentPanel(props: AgentPanelProps): React.ReactElement {
       React.createElement('button', { className: 'lim-send lim-publish', onClick: () => setPublishing(true) }, '发布'),
     ),
     React.createElement('div', { className: 'lim-agents-scroll' },
+      React.createElement('div', { className: 'lim-agent-section' }, '被别人调用'),
+      props.sessions.filter((x) => x.status !== 'closed').length === 0
+        ? React.createElement('div', { className: 'lim-empty-compact' },
+            React.createElement('div', null, '暂时没有人在调用你的 agent'),
+          )
+        : props.sessions.filter((x) => x.status !== 'closed').map((session) =>
+            React.createElement('div', { key: session.remoteId, className: 'lim-agent-row lim-session-row' },
+              React.createElement('div', { className: 'lim-agent-row-main' },
+                React.createElement('div', { className: 'lim-agent-row-title' }, session.agentKey.split('/')[1] ?? session.agentKey),
+                React.createElement('div', { className: 'lim-agent-row-sub' },
+                  `@${session.callerId} · ${session.turns} 轮 · ${session.tokens} token`),
+              ),
+              React.createElement('button', {
+                className: 'lim-chip lim-chip-action',
+                onClick: () => props.onCloseSession(session.remoteId),
+              }, '断开'),
+            ),
+          ),
       mine.length > 0
         ? React.createElement(React.Fragment, null,
             React.createElement('div', { className: 'lim-agents-group' }, '我发布的'),

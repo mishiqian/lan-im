@@ -165,7 +165,11 @@ export class HttpGateway {
               if (action === 'agent.remote.close') {
                 const owner = String(body.account ?? '')
                 const peer = this.runtime.peerNetwork.peersSnapshot().find((p) => p.accountId === owner)
-                if (peer !== undefined) this.runtime.peerNetwork.sendWire(peer.nodeId, { t: 'agentClose', sessionId: String(body.sessionId ?? '') })
+                if (peer === undefined) {
+                  this.runtime.clients.logEvent(`关闭会话失败：@${owner} 不在线`)
+                  return json(res, 200, { ok: false, error: `@${owner} 不在线` })
+                }
+                this.runtime.peerNetwork.sendWire(peer.nodeId, { t: 'agentClose', sessionId: String(body.sessionId ?? '') })
                 return json(res, 200, { ok: true })
               }
               if (action === 'agent.serve.list') {
@@ -256,6 +260,7 @@ export class HttpGateway {
               messages: this.runtime.messageStore.messages.slice(-HISTORY_LIMIT),
               sharedFiles: this.runtime.sharedFileStore.list(),
               agents: this.runtime.agents.list(),
+              sessions: this.runtime.agentService.list().slice(-50),
               identity: { keyId: this.runtime.keyId, observed: this.runtime.identityObserved, pins: this.runtime.trust.list().length },
               clients: this.runtime.clients.count,
               log: this.runtime.clients.log,

@@ -10,7 +10,7 @@ import { CSS } from './styles.ts'
 import { apiBase, currentApiHost, requestNotif, resolveApiHost, wsUrl } from './format.ts'
 import { ChatWindow, Launcher } from './components.ts'
 import { AgentPanel, type PublishInput } from './agent-panel.ts'
-import type { AgentEntry } from '../protocol.ts'
+import type { AgentEntry, RemoteSessionRecord } from '../protocol.ts'
 
 let wsFailureReports = 0
 async function reportWsFailure(): Promise<void> {
@@ -46,6 +46,7 @@ function App(): React.ReactElement {
   const [error, setError] = React.useState<string | null>(null)
   const [mode, setMode] = React.useState<'chat' | 'agents'>('chat')
   const [agents, setAgents] = React.useState<AgentEntry[]>([])
+  const [sessions, setSessions] = React.useState<RemoteSessionRecord[]>([])
   const [agentBusy, setAgentBusy] = React.useState(false)
 
   const wsRef = React.useRef<WebSocket | null>(null)
@@ -85,10 +86,16 @@ function App(): React.ReactElement {
         try { msg = JSON.parse(String(ev.data)) } catch { return }
         if (msg.t === 'agentsChanged') {
           setAgents(Array.isArray(msg.agents) ? (msg.agents as AgentEntry[]) : [])
+          setSessions(Array.isArray(msg.sessions) ? (msg.sessions as RemoteSessionRecord[]) : [])
+          return
+        }
+        if (msg.t === 'sessions') {
+          setSessions(Array.isArray(msg.sessions) ? (msg.sessions as RemoteSessionRecord[]) : [])
           return
         }
         if (msg.t === 'snapshot') {
           setAgents(Array.isArray(msg.agents) ? (msg.agents as AgentEntry[]) : [])
+          setSessions(Array.isArray(msg.sessions) ? (msg.sessions as RemoteSessionRecord[]) : [])
           setSelf(msg.self as SelfInfo)
           setPeers(Array.isArray(msg.peers) ? (msg.peers as Peer[]) : [])
           setChannels(Array.isArray(msg.channels) ? (msg.channels as Channel[]) : [])
@@ -239,6 +246,13 @@ function App(): React.ReactElement {
     }
   }
 
+  const closeSession = (remoteId: string): void => {
+    // 作者侧断开：会话托管在本机，直接关本机的
+    void apiPost({ action: 'agent.serve.close', sessionId: remoteId })
+      .then(() => setSessions((prev) => prev.map((x) => (x.remoteId === remoteId ? { ...x, status: 'closed' as const } : x))))
+      .catch((err: any) => setError('断开失败：' + String(err?.message ?? err)))
+  }
+
   const loadBases = async (): Promise<string[]> => {
     try {
       const r = await apiPost({ action: 'agent.bases' })
@@ -339,6 +353,8 @@ function App(): React.ReactElement {
       agentView: React.createElement(AgentPanel, {
         entries: agents,
         loadBases,
+        sessions,
+        onCloseSession: closeSession,
         selfAccount: self?.accountId ?? '',
         busy: agentBusy,
         onPublish: publishAgent,

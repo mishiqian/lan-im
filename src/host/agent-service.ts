@@ -9,26 +9,15 @@
  * 会话日志是唯一事实源：回复从 `session.snapshotEvents()` 里读，不另外记一份。
  */
 import { randomUUID } from 'node:crypto'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import type { HostRuntime } from './runtime.ts'
 import { CapabilitySet, SessionBudget, decideToolCall } from './capability.ts'
 import type { AgentToolGrant } from '../protocol.ts'
 
-export interface RemoteSessionRecord {
-  /** 对调用方暴露的会话 id */
-  remoteId: string
-  /** 本机 DSH session id */
-  dshSessionId: string
-  agentKey: string
-  preset: string
-  callerId: string
-  createdAt: number
-  lastActive: number
-  status: 'active' | 'suspended' | 'closed'
-  turns: number
-  tokens: number
-}
+import type { RemoteSessionRecord } from '../protocol.ts'
+export type { RemoteSessionRecord }
 
 interface LiveSession {
   record: RemoteSessionRecord
@@ -63,8 +52,30 @@ function textOf(message: any): string {
 export class AgentService {
   private readonly live = new Map<string, LiveSession>()
   private readonly history: RemoteSessionRecord[] = []
+  private get file(): string { return join(this.runtime.storage.dataDir(), 'agent-sessions.json') }
 
   constructor(private readonly runtime: HostRuntime) {}
+
+  /** 启动时恢复历史（会话日志由 DSH 持久化，这里只存作者侧可见的摘要） */
+  async load(): Promise<void> {
+    if (!existsSync(this.file)) return
+    try {
+      const rows = JSON.parse(await readFile(this.file, 'utf8')) as RemoteSessionRecord[]
+      for (const row of rows) {
+        if (row === null || typeof row.remoteId !== 'string') continue
+        // 进程已经没了，上次留下的 active 记录不可能还活着
+        this.history.push(row.status === 'active' ? { ...row, status: 'closed' } : row)
+      }
+    } catch { /* 坏文件当空处理 */ }
+  }
+
+  private async persist(): Promise<void> {
+    try {
+      const all = [...this.live.values()].map((s) => s.record).concat(this.history)
+      await mkdir(this.runtime.storage.dataDir(), { recursive: true })
+      await writeFile(this.file, `${JSON.stringify(all, null, 2)}\n`, 'utf8')
+    } catch { /* 落盘失败不影响调用 */ }
+  }
 
   list(): RemoteSessionRecord[] {
     return [...this.live.values()].map((s) => s.record).concat(this.history)
@@ -153,6 +164,8 @@ export class AgentService {
         caps: new CapabilitySet(input.tools ?? [], root),
       })
       this.runtime.clients.logEvent(`远端会话已开：${input.callerId} → ${input.agentKey}（${remoteId.slice(0, 8)}）`)
+      void this.persist()
+      this.runtime.clients.sessions(this.list())
       return { ok: true, sessionId: remoteId }
     } catch (err: any) {
       return { ok: false, error: `创建会话失败：${err?.message ?? err}` }
@@ -217,6 +230,7 @@ export class AgentService {
 
     live.record.turns += 1
     live.record.tokens += tokens
+    void this.persist()
     live.record.lastActive = Date.now()
     const tokenCheck = live.budget.addTokens(tokens)
     const result: SendResult = {
@@ -240,6 +254,8 @@ export class AgentService {
       await live.dispose()
     } catch { /* 已释放 */ }
     this.runtime.clients.logEvent(`远端会话已关：${remoteId.slice(0, 8)}（${live.record.turns} 轮 / ${live.record.tokens} token）`)
+    void this.persist()
+    this.runtime.clients.sessions(this.list())
     return true
   }
 

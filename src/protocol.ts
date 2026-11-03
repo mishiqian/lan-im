@@ -172,6 +172,20 @@ export interface AgentEntry {
   installedVersion?: string
 }
 
+/** 一次远端托管会话的落盘记录（作者侧可见） */
+export interface RemoteSessionRecord {
+  remoteId: string
+  dshSessionId: string
+  agentKey: string
+  preset: string
+  callerId: string
+  createdAt: number
+  lastActive: number
+  status: 'active' | 'suspended' | 'closed'
+  turns: number
+  tokens: number
+}
+
 /** 节点间 WebSocket 消息帧 */
 export type PeerWireMessage =
   | {

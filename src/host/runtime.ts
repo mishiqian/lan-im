@@ -81,6 +81,7 @@ export class HostRuntime {
     await this.trust.load()
     if (idResult.created) this.clients.logEvent(`已生成本机局域网身份 ${idResult.identity.keyId}`)
     await this.agents.load()
+    await this.agentService.load()
     const config = await this.storage.readConfig()
     await this.storage.ensureDataDir()
     this.clients.logEvent(`数据目录：${this.storage.dataDir()}`)
