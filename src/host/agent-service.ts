@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { HostRuntime } from './runtime.ts'
-import { CapabilitySet, SessionBudget } from './capability.ts'
+import { CapabilitySet, SessionBudget, decideToolCall } from './capability.ts'
 import type { AgentToolGrant } from '../protocol.ts'
 
 export interface RemoteSessionRecord {
@@ -91,6 +91,7 @@ export class AgentService {
       return { ok: false, error: `创建工作目录失败：${err?.message ?? err}` }
     }
 
+    const caps = new CapabilitySet(input.tools ?? [], root)
     const budgetLimits = {
       turns: input.budget?.turns ?? 30,
       tokens: input.budget?.tokens ?? 60000,
@@ -107,10 +108,21 @@ export class AgentService {
         sessionId: dshSessionId,
         ...(Object.keys(loopOptions).length === 0 ? {} : { agentOptions: loopOptions }),
         meta: { cwd: root },
-        // 两种身份绑定都要在 setup 里做：mount 接受的是「尚未发布的 agent 上下文」
-        ...(wantsPreset || authorPrompt !== ''
-          ? {
-              setup: async (agentCtx: any) => {
+        // 身份绑定与能力闸都在 setup 里做：mount / section / on 都接受「尚未发布的 agent 上下文」
+        setup: async (agentCtx: any) => {
+          // 能力包络四道闸：挂在该 agent 作用域的 tools/pre-execute 上
+          if (typeof agentCtx.on === 'function') {
+            agentCtx.on('tools/pre-execute', async (exec: any, next: () => Promise<any>) => {
+              const toolName = String(exec?.name ?? exec?.tool?.name ?? '')
+              const args = (exec?.arguments ?? exec?.args ?? {}) as Record<string, unknown>
+              const verdict = decideToolCall(caps, toolName, args)
+              if (verdict.decision === 'allow') return next()
+              if (verdict.decision === 'ask') return { kind: 'ask', reason: verdict.reason }
+              this.runtime.clients.logEvent(`拦截工具调用 ${toolName}：${verdict.reason}`)
+              return { kind: 'deny', reason: verdict.reason }
+            })
+          }
+          {
                 if (wantsPreset && presets !== undefined && typeof presets.mount === 'function') {
                   await presets.mount(agentCtx, input.preset)
                 }
@@ -125,9 +137,8 @@ export class AgentService {
                     sp.section({ name: 'lanim:agent-persona', order, text: authorPrompt })
                   }
                 }
-              },
-            }
-          : {}),
+          }
+        },
       })
       const record: RemoteSessionRecord = {
         remoteId, dshSessionId, agentKey: input.agentKey, preset: input.preset ?? '',

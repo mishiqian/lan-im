@@ -121,6 +121,34 @@ export class CapabilitySet {
   }
 }
 
+/**
+ * 把 DSH 的工具名与参数映射到包络判定。
+ * 未知工具一律按「未授权」处理——服务模式的默认姿态是拒绝，不是放行。
+ */
+export function decideToolCall(caps: CapabilitySet, name: string, args: Record<string, unknown>): Verdict {
+  const path = (): string => {
+    const candidate = args.file_path ?? args.path ?? args.dir
+    return typeof candidate === 'string' ? candidate : ''
+  }
+  if (name === 'bash') return caps.checkCommand(String(args.command ?? ''))
+  if (name === 'read' || name === 'read_image') {
+    const target = path()
+    return target === '' ? deny('缺少 file_path，服务模式必须显式指定路径') : caps.checkPath('fs.read', target)
+  }
+  if (name === 'write' || name === 'edit') {
+    const target = path()
+    return target === '' ? deny('缺少 file_path，服务模式必须显式指定路径') : caps.checkPath('fs.write', target)
+  }
+  if (name === 'glob' || name === 'grep') {
+    const target = path()
+    return target === '' ? deny('请显式给出 path（服务模式只允许访问授权范围）') : caps.checkPath('fs.read', target)
+  }
+  if (name === 'fetch' || name === 'web_fetch' || name === 'web_search') {
+    return caps.checkDomain(String(args.url ?? ''))
+  }
+  return deny(`工具 ${name} 未在能力包络中授权`)
+}
+
 export interface BudgetLimits { turns: number; tokens: number; seconds: number }
 
 export interface BudgetSnapshot { turns: number; tokens: number; seconds: number }

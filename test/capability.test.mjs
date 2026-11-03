@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, writeFile, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { CapabilitySet, SessionBudget } from '../lib/types/host/capability.js'
+import { CapabilitySet, SessionBudget, decideToolCall } from '../lib/types/host/capability.js'
 
 const grants = () => ([
   { name: 'fs.read', scope: 'share/**' },
@@ -94,4 +94,18 @@ test('预算：轮数/token/时长耗尽即拒', () => {
 test('未声明 scope 的 fs 授权视为无效', () => {
   const caps = new CapabilitySet([{ name: 'fs.read' }], tmpdir())
   assert.equal(caps.checkPath('fs.read', 'share/a.md').decision, 'deny')
+})
+
+test('工具名映射：bash / read / write / 未知工具', () => {
+  const caps = new CapabilitySet(grants(), tmpdir())
+  assert.equal(decideToolCall(caps, 'bash', { command: 'git log' }).decision, 'allow')
+  assert.equal(decideToolCall(caps, 'bash', { command: 'rm -rf /' }).decision, 'deny')
+  assert.equal(decideToolCall(caps, 'read', { file_path: 'share/a.md' }).decision, 'allow')
+  assert.equal(decideToolCall(caps, 'read', { file_path: '/etc/passwd' }).decision, 'deny')
+  assert.equal(decideToolCall(caps, 'write', { file_path: 'share/out/x.md' }).decision, 'allow')
+  assert.equal(decideToolCall(caps, 'write', { file_path: 'share/x.md' }).decision, 'deny')
+  // 未授权工具默认拒绝（不是放行）
+  assert.equal(decideToolCall(caps, 'subagent', {}).decision, 'deny')
+  // 缺路径的读类工具直接拒绝，避免「不给 path 就扫全盘」
+  assert.equal(decideToolCall(caps, 'glob', { pattern: '**/*.md' }).decision, 'deny')
 })
