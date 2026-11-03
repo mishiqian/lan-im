@@ -10,17 +10,23 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { packagePathProblem, verifyPackage, type AgentPackage } from './agent-package.ts'
 import type { AgentRegistry, InstalledRecord } from './agent-registry.ts'
+import { removePresetRow, writePresetRow } from './profile-preset.ts'
 
 export interface InstallOptions {
   /** DSH 的 preset 根目录，通常是 ~/.dsh/.agent-presets */
   presetsDir: string
   registry: AgentRegistry
+  /** 当前 profile 的 patch 文件；给了才会注册 preset 行（需重启生效） */
+  patchFile?: () => string | undefined
 }
 
 export interface InstallResult {
   ok: boolean
   errors: Array<{ field: string; message: string }>
   record?: InstalledRecord
+  /** 已写入 preset 行：需要重启 dsh 才会出现在 preset 列表 */
+  restartRequired?: boolean
+  presetRow?: string
 }
 
 export class AgentInstaller {
@@ -67,6 +73,21 @@ export class AgentInstaller {
       installedAt: Date.now(),
     }
     await this.opts.registry.markInstalled(record)
+
+    // 注册 preset 行：目录里的文件不会被自动发现，必须写进 profile 组合
+    const patchFile = this.opts.patchFile?.()
+    if (patchFile !== undefined && patchFile !== '') {
+      const written = await writePresetRow(patchFile, {
+        account: card.author.accountId,
+        agentId: card.id,
+        agentName: card.name,
+        composition: preset.data,
+      })
+      if (!written.ok) {
+        return { ok: false, errors: [{ field: 'profile', message: `写 preset 行失败：${written.error ?? '未知错误'}` }] }
+      }
+      return { ok: true, errors: [], record, restartRequired: true, presetRow: written.file }
+    }
     return { ok: true, errors: [], record }
   }
 
@@ -76,6 +97,8 @@ export class AgentInstaller {
     if (record === undefined) return false
     await rm(record.dir, { recursive: true, force: true })
     await this.opts.registry.markUninstalled(account, id)
+    const patchFile = this.opts.patchFile?.()
+    if (patchFile !== undefined && patchFile !== '') await removePresetRow(patchFile, account, id)
     return true
   }
 }

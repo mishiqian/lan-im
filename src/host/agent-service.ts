@@ -45,6 +45,8 @@ export interface OpenInput {
   /** 模型路由：不指定时用宿主默认 */
   provider?: string
   model?: string
+  /** 作者的角色设定：注册成该 agent 作用域的 prompt section */
+  prompt?: string
   tools?: AgentToolGrant[]
   budget?: { turns?: number; tokens?: number; seconds?: number }
 }
@@ -100,13 +102,31 @@ export class AgentService {
       const loopOptions: Record<string, unknown> = {}
       if (input.provider !== undefined && input.provider !== '') loopOptions.provider = input.provider
       if (input.model !== undefined && input.model !== '') loopOptions.model = input.model
+      const authorPrompt = (input.prompt ?? '').trim()
       const handle = await loop.createAgent(ctx, {
         sessionId: dshSessionId,
-        ...(Object.keys(loopOptions).length === 0 ? {} : { options: loopOptions }),
+        ...(Object.keys(loopOptions).length === 0 ? {} : { agentOptions: loopOptions }),
         meta: { cwd: root },
-        // preset 必须在 setup 里挂：mount 接受的是「尚未发布的 agent 上下文」
-        ...(wantsPreset && presets !== undefined && typeof presets.mount === 'function'
-          ? { setup: async (agentCtx: any) => { await presets.mount(agentCtx, input.preset) } }
+        // 两种身份绑定都要在 setup 里做：mount 接受的是「尚未发布的 agent 上下文」
+        ...(wantsPreset || authorPrompt !== ''
+          ? {
+              setup: async (agentCtx: any) => {
+                if (wantsPreset && presets !== undefined && typeof presets.mount === 'function') {
+                  await presets.mount(agentCtx, input.preset)
+                }
+                if (authorPrompt !== '') {
+                  const sp = typeof agentCtx.get === 'function' ? agentCtx.get('systemPrompt') : undefined
+                  if (sp !== undefined && typeof sp.section === 'function') {
+                    let order = 100
+                    try {
+                      const resolved = sp.getSectionOrder?.('persona-prefix')
+                      if (typeof resolved === 'number') order = resolved
+                    } catch { /* 用默认 order */ }
+                    sp.section({ name: 'lanim:agent-persona', order, text: authorPrompt })
+                  }
+                }
+              },
+            }
           : {}),
       })
       const record: RemoteSessionRecord = {

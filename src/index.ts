@@ -27,6 +27,8 @@ export function apply(ctx: any): void {
   setProfileKey(resolveProfileKey(ctx))
   const runtime = new HostRuntime()
   runtime.attach(ctx)
+  const profileCtx = typeof ctx.get === 'function' ? ctx.get('profileContext') : undefined
+  if (profileCtx !== undefined && typeof profileCtx.dir === 'string') runtime.profileDir = profileCtx.dir
 
   ctx.effect(() => {
     runtime.stopped = false

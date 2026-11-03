@@ -115,6 +115,7 @@ export class PeerNetwork {
     q.push(frame)
     if (q.length > 200) q.shift()
     this.pending.set(nodeId, q)
+    this.ensurePeerConnection(nodeId, true)
     return false
   }
 
@@ -148,11 +149,13 @@ export class PeerNetwork {
     }
   }
 
-  ensurePeerConnection(nodeId: string): void {
+  ensurePeerConnection(nodeId: string, force = false): void {
     if (this.runtime.stopped) return
     const peer = this.peers.get(nodeId)
     if (peer === undefined || !peer.ip || !peer.wsPort) return
-    if (this.runtime.self.nodeId >= peer.nodeId) return
+    // 默认只由 nodeId 较小的一方拨号；但「有帧要发却连不上」时必须允许反向拨，
+    // 否则对方重启后这一侧会一直排队（实测踩到）
+    if (!force && this.runtime.self.nodeId >= peer.nodeId) return
     const existing = this.connections.get(nodeId)
     if (existing !== undefined && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) return
     try {

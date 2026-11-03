@@ -42,11 +42,12 @@ export function injectPersona(baseYaml: string, prompt: string): { ok: boolean; 
   while (end < lines.length && !/^-\s/.test(lines[end])) end++
 
   const body = prompt.trimEnd().split('\n').map((line) => (line === '' ? '' : `      ${line}`))
+  // 注意：这一版 persona 的配置键是 prefix（不是老 preset 里的 text）
   const block = [
     '- id: persona',
     "  name: '@deepseek-ai/dsh-persona'",
     '  config:',
-    '    text: |',
+    '    prefix: |',
     ...body,
     '',
   ]

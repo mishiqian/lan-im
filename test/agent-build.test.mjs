@@ -25,6 +25,7 @@ test('persona 段被替换，其他行保留', () => {
   assert.ok(r.yaml.includes('你是评审员。'))
   assert.ok(!r.yaml.includes('旧的设定'))
   assert.ok(r.yaml.includes('- id: tool-bash'))
+  assert.ok(r.yaml.includes('    prefix: |'), 'persona 配置键必须用 prefix')
   assert.ok(r.yaml.includes('# 注释保留'))
 })
 

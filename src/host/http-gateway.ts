@@ -128,7 +128,9 @@ export class HttpGateway {
               }
               if (action === 'agent.install') {
                 const result = await this.runtime.agentInstaller.install(body.pkg)
-                return json(res, 200, result.ok ? { ok: true, record: result.record } : { ok: false, errors: result.errors })
+                return json(res, 200, result.ok
+                  ? { ok: true, record: result.record, restartRequired: result.restartRequired === true }
+                  : { ok: false, errors: result.errors })
               }
               if (action === 'agent.uninstall') {
                 const done = await this.runtime.agentInstaller.uninstall(String(body.account ?? ''), String(body.id ?? ''))
@@ -141,6 +143,7 @@ export class HttpGateway {
                   preset: typeof body.preset === 'string' ? body.preset : undefined,
                   provider: typeof body.provider === 'string' ? body.provider : undefined,
                   model: typeof body.model === 'string' ? body.model : undefined,
+                  prompt: typeof body.prompt === 'string' ? body.prompt : undefined,
                   tools: Array.isArray(body.tools) ? body.tools : [],
                   budget: typeof body.budget === 'object' && body.budget !== null ? body.budget : undefined,
                 })

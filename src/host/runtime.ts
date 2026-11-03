@@ -63,7 +63,13 @@ export class HostRuntime {
   })
   /** DSH 的 preset 根目录：既是安装目标，也是「基础 preset」的来源 */
   readonly presetsRoot = join(process.env.DSH_HOME && process.env.DSH_HOME !== '' ? process.env.DSH_HOME : join(homedir(), '.dsh'), '.agent-presets')
-  readonly agentInstaller = new AgentInstaller({ presetsDir: this.presetsRoot, registry: this.agents })
+  /** 当前 profile 目录（由 profileContext 注入，供写 preset 行） */
+  profileDir = ''
+  readonly agentInstaller = new AgentInstaller({
+    presetsDir: this.presetsRoot,
+    registry: this.agents,
+    patchFile: () => (this.profileDir === '' ? undefined : join(this.profileDir, 'cordis.patch.yml')),
+  })
   private readonly agentFetches = new Map<string, (pkg: AgentPackage | undefined) => void>()
   readonly gateway = new HttpGateway(this)
 
