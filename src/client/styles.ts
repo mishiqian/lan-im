@@ -241,6 +241,7 @@ export const CSS = `
 .lim-agent-detail-head{display:flex;align-items:center;gap:10px}
 .lim-agent-detail-title{flex:1;min-width:0}
 .lim-agent-block-title{font-size:11px;font-weight:600;color:var(--lim-faint);letter-spacing:.04em}
+.lim-prompt{max-height:140px;overflow:auto;padding:10px;border-radius:8px;background:var(--lim-surface);font-size:12px;color:var(--lim-fg);white-space:pre-wrap;line-height:1.6}
 .lim-sample{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:8px;background:var(--lim-surface)}
 .lim-sample-label{font-size:11px;color:var(--lim-faint)}
 .lim-sample-body{font-size:12px;color:var(--lim-muted);white-space:pre-wrap;max-height:90px;overflow:auto}
@@ -252,6 +253,9 @@ export const CSS = `
 .lim-input:disabled{opacity:.45;cursor:not-allowed}
 .lim-textarea{flex:none;resize:vertical;font-family:inherit}
 .lim-empty-compact{padding:14px;gap:6px}
+.lim-advanced-toggle{align-self:flex-start;border:none;background:none;color:var(--lim-muted);font:inherit;font-size:12px;cursor:pointer;padding:4px 0}
+.lim-advanced-toggle:hover{color:var(--lim-fg)}
+.lim-advanced{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:10px;background:var(--lim-surface)}
 
 @media (prefers-reduced-motion:reduce){.lim-window *,.lim-window *::before,.lim-window *::after{transition:none!important;animation:none!important}}
 `

@@ -16,6 +16,7 @@ const card = (over = {}) => ({
   version: '1.0.0',
   name: 'PR 审阅',
   summary: '读 diff 出意见',
+  prompt: '你是代码评审员。读 diff，指出风险与缺失的测试，用中文给结论。',
   author: { accountId: 'alice' },
   input: { type: 'text' },
   output: { type: 'markdown' },
@@ -57,7 +58,7 @@ test('发布后落盘、列表可见、回调触发', async () => {
 
 test('发布非法卡片被拒，且不落盘', async () => {
   const { dir, registry } = await makeRegistry()
-  const r = await registry.publish(card({ samples: [] }), files())
+  const r = await registry.publish(card({ prompt: '' }), files())
   assert.equal(r.ok, false)
   assert.equal(registry.list().length, 0)
   assert.deepEqual(await readdir(join(dir, 'published')), [])

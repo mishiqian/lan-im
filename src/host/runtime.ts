@@ -51,10 +51,9 @@ export class HostRuntime {
       this.clients.push({ t: 'agentsChanged', agents: this.agents.list() })
     },
   })
-  readonly agentInstaller = new AgentInstaller({
-    presetsDir: join(process.env.DSH_HOME && process.env.DSH_HOME !== '' ? process.env.DSH_HOME : join(homedir(), '.dsh'), '.agent-presets'),
-    registry: this.agents,
-  })
+  /** DSH 的 preset 根目录：既是安装目标，也是「基础 preset」的来源 */
+  readonly presetsRoot = join(process.env.DSH_HOME && process.env.DSH_HOME !== '' ? process.env.DSH_HOME : join(homedir(), '.dsh'), '.agent-presets')
+  readonly agentInstaller = new AgentInstaller({ presetsDir: this.presetsRoot, registry: this.agents })
   private readonly agentFetches = new Map<string, (pkg: AgentPackage | undefined) => void>()
   readonly gateway = new HttpGateway(this)
 

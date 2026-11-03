@@ -12,6 +12,7 @@ const base = () => ({
   version: '1.0.0',
   name: 'PR 审阅',
   summary: '读 diff，按团队规范出评审意见',
+  prompt: '你是代码评审员。读 diff，指出风险与缺失的测试，用中文给结论。',
   author: { accountId: 'alice', keyId: 'K7QF3M2X' },
   input: { type: 'text', hint: '贴 diff' },
   output: { type: 'markdown' },
@@ -34,11 +35,21 @@ test('合法卡片通过并补齐默认预算', () => {
   assert.equal(r.card.exposure.acl, 'lan')
 })
 
-test('缺样例被拒，且错误指向 samples 字段', () => {
-  const c = base(); c.samples = []
+test('样例可选；给了就必须完整', () => {
+  const noSamples = base(); noSamples.samples = []
+  assert.equal(validateCard(noSamples).ok, true)
+
+  const broken = base(); broken.samples = [{ in: 'a', out: '' }]
+  const r = validateCard(broken)
+  assert.equal(r.ok, false)
+  assert.ok(r.errors.some((e) => e.field === 'samples[0].out'))
+})
+
+test('缺 prompt 被拒（agent 的核心）', () => {
+  const c = base(); c.prompt = ''
   const r = validateCard(c)
   assert.equal(r.ok, false)
-  assert.ok(r.errors.some((e) => e.field === 'samples'))
+  assert.ok(r.errors.some((e) => e.field === 'prompt'))
 })
 
 test('未知工具被拒', () => {

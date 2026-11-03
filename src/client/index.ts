@@ -194,33 +194,33 @@ function App(): React.ReactElement {
   }
 
   const publishAgent = (input: PublishInput): void => {
-    const me = selfRef.current?.accountId ?? ''
-    if (me === '') { setError('先创建账号再发布'); return }
+    if ((selfRef.current?.accountId ?? '') === '') { setError('先创建账号再发布'); return }
     setAgentBusy(true)
-    const card = {
-      schema: 1,
-      id: input.id,
-      version: '1.0.0',
+    void apiPost({
+      action: 'agent.publish',
       name: input.name,
+      prompt: input.prompt,
       summary: input.summary,
-      author: { accountId: me },
-      input: { type: 'text', ...(input.inputHint !== '' ? { hint: input.inputHint } : {}) },
-      output: { type: 'markdown' },
-      requires: { permissions: 'read-only', tools: input.tools, budget: {} },
-      exposure: { cloneable: input.cloneable, callable: input.callable, acl: 'lan' },
-      samples: [{ in: input.sampleIn, out: input.sampleOut }],
-    }
-    const files = [
-      { path: 'preset.yml', encoding: 'utf8', data: `# ${input.name}\n# 由 lan-im 发布，可直接编辑这个文件来调教\nname: ${input.id}\ndescription: ${input.summary}\n` },
-      { path: 'skills/ROLE.md', encoding: 'utf8', data: `# ${input.name}\n\n${input.summary}\n\n## 输入\n${input.inputHint || '无特殊说明'}\n` },
-    ]
-    void apiPost({ action: 'agent.publish', card, files })
+      base: input.base,
+      tools: input.tools,
+      cloneable: input.cloneable,
+      callable: input.callable,
+      sampleIn: input.sampleIn,
+      sampleOut: input.sampleOut,
+    })
       .then((r: any) => {
         if (r?.ok !== true) setError('发布失败：' + ((r?.errors ?? []).map((e: any) => `${e.field} ${e.message}`).join('；') || '未知错误'))
         else void refreshAgents()
       })
       .catch((e: any) => setError('发布失败：' + String(e)))
       .finally(() => setAgentBusy(false))
+  }
+
+  const loadBases = async (): Promise<string[]> => {
+    try {
+      const r = await apiPost({ action: 'agent.bases' })
+      return r?.ok === true && Array.isArray(r.bases) ? r.bases.map((b: any) => String(b.name)) : []
+    } catch { return [] }
   }
 
   const installAgent = (entry: AgentEntry): void => {
@@ -315,6 +315,7 @@ function App(): React.ReactElement {
       onModeChange: setMode,
       agentView: React.createElement(AgentPanel, {
         entries: agents,
+        loadBases,
         selfAccount: self?.accountId ?? '',
         busy: agentBusy,
         onPublish: publishAgent,

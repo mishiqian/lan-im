@@ -41,8 +41,8 @@ Agent（卡片 + preset + 技能 + 样例，签名防篡改）
 
 ### F1 创作与发布（M0）
 
-- F1.1 从「现有 preset + 勾选技能 + 填卡片」生成 agent 包
-- F1.2 卡片必须含：id、版本（semver）、名称、一句话说明、输入说明、输出说明、所需工具、样例（1–3 组）
+- F1.1 从「名称 + 角色设定」生成 agent 包：拿本机一份 preset 当骨架，把 persona 段换成作者的 prompt
+- F1.2 卡片必须含：id、版本（semver）、名称、一句话说明、**角色设定 prompt**（核心，10–8000 字）；工具与样例可选
 - F1.3 发布前本地校验；非法卡片给出字段级错误
 - F1.4 卡片带内容哈希；M2 起加作者签名
 - F1.5 发布动作需二次确认（对外可见，不可撤回）
@@ -131,6 +131,7 @@ Agent（卡片 + preset + 技能 + 样例，签名防篡改）
   "version": "1.2.0",
   "name": "PR 审阅",
   "summary": "读 diff，按团队规范出评审意见",
+  "prompt": "你是代码评审员。先看风险，再看测试覆盖，最后给一句结论。",
   "author": { "accountId": "alice", "keyId": "K7QF3M2X" },
   "input": { "type": "text", "hint": "贴 diff 或 PR 链接" },
   "output": { "type": "markdown" },

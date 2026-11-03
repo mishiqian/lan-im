@@ -79,6 +79,10 @@ export function validateCard(raw: unknown): CardResult {
   const summary = isStr(raw.summary) ? raw.summary.trim() : ''
   if (summary === '' || summary.length > 80) push('summary', 'summary 必填，且不超过 80 字')
 
+  const prompt = isStr(raw.prompt) ? raw.prompt.trim() : ''
+  if (prompt.length < 10) push('prompt', 'prompt 至少 10 个字——这是 agent 的核心，不能空着')
+  if (prompt.length > 8000) push('prompt', 'prompt 不超过 8000 字')
+
   const authorRaw = isRecord(raw.author) ? raw.author : {}
   const accountId = isStr(authorRaw.accountId) ? authorRaw.accountId.trim() : ''
   if (!AGENT_ACCOUNT_RE.test(accountId)) push('author.accountId', 'author.accountId 非法')
@@ -145,7 +149,6 @@ export function validateCard(raw: unknown): CardResult {
   if (acl === 'accounts' && accounts.length === 0) push('exposure.accounts', 'acl 为 accounts 时必须给出账号列表')
 
   const samplesRaw = Array.isArray(raw.samples) ? raw.samples : []
-  if (samplesRaw.length === 0) push('samples', '至少给 1 组样例，接收方靠它判断好不好用')
   if (samplesRaw.length > 3) push('samples', '样例最多 3 组')
   const samples: AgentSample[] = []
   samplesRaw.slice(0, 3).forEach((s, i) => {
@@ -167,6 +170,7 @@ export function validateCard(raw: unknown): CardResult {
     version,
     name,
     summary,
+    prompt,
     author: { accountId, ...(isStr(authorRaw.keyId) && authorRaw.keyId !== '' ? { keyId: String(authorRaw.keyId) } : {}) },
     input: { type: inputType as AgentCard['input']['type'], ...(isStr(inputRaw.hint) && inputRaw.hint.trim() !== '' ? { hint: inputRaw.hint.trim().slice(0, 200) } : {}) },
     output: { type: outputType as AgentCard['output']['type'] },

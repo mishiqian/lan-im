@@ -136,6 +136,8 @@ export interface AgentCard {
   version: string
   name: string
   summary: string
+  /** 角色设定正文——agent 的核心，装到对方机器上就是这个 prompt 在生效 */
+  prompt: string
   author: { accountId: string; keyId?: string }
   input: { type: 'text' | 'file' | 'any'; hint?: string }
   output: { type: 'markdown' | 'text' | 'json' | 'file' }

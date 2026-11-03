@@ -6,6 +6,7 @@ import { API_ROUTE, HISTORY_LIMIT, WS_PATH } from '../protocol.ts'
 import type { HostRuntime } from './runtime.ts'
 import { json, readBody } from './util.ts'
 import { ClientBridge } from './client-bridge.ts'
+import { buildAgentPackage, listBasePresets } from './agent-build.ts'
 
 export interface WebServer {
   register(route: {
@@ -95,8 +96,27 @@ export class HttpGateway {
               if (action === 'agent.list') {
                 return json(res, 200, { ok: true, agents: this.runtime.agents.list(), installed: this.runtime.agents.installedList() })
               }
+              if (action === 'agent.bases') {
+                return json(res, 200, { ok: true, bases: await listBasePresets(this.runtime.presetsRoot) })
+              }
               if (action === 'agent.publish') {
-                const result = await this.runtime.agents.publish(body.card, Array.isArray(body.files) ? body.files : [])
+                const built = await buildAgentPackage({
+                  presetsDir: this.runtime.presetsRoot,
+                  base: String(body.base ?? ''),
+                  accountId: this.runtime.self.accountId,
+                  name: String(body.name ?? ''),
+                  prompt: String(body.prompt ?? ''),
+                  summary: typeof body.summary === 'string' ? body.summary : undefined,
+                  tools: Array.isArray(body.tools) ? body.tools : [],
+                  cloneable: body.cloneable !== false,
+                  callable: body.callable === true,
+                  sampleIn: typeof body.sampleIn === 'string' ? body.sampleIn : '',
+                  sampleOut: typeof body.sampleOut === 'string' ? body.sampleOut : '',
+                })
+                if (!built.ok || built.card === undefined || built.files === undefined) {
+                  return json(res, 200, { ok: false, errors: built.errors })
+                }
+                const result = await this.runtime.agents.publish(built.card, built.files)
                 return json(res, 200, result.ok ? { ok: true, card: result.card } : { ok: false, errors: result.errors })
               }
               if (action === 'agent.unpublish') {

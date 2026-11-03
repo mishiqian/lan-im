@@ -11,6 +11,7 @@ const card = () => ({
   version: '1.0.0',
   name: 'PR 审阅',
   summary: '读 diff，按团队规范出评审意见',
+  prompt: '你是代码评审员。读 diff，指出风险与缺失的测试，用中文给结论。',
   author: { accountId: 'alice', keyId: 'K7QF3M2X' },
   input: { type: 'text' },
   output: { type: 'markdown' },
@@ -78,8 +79,8 @@ test('文件哈希与顺序无关', () => {
 })
 
 test('非法卡片在打包阶段就被拦下', () => {
-  const bad = { ...card(), samples: [] }
+  const bad = { ...card(), prompt: '' }
   const r = createPackage(bad, files())
   assert.equal(r.ok, false)
-  assert.ok(r.errors.some((e) => e.field === 'card.samples'))
+  assert.ok(r.errors.some((e) => e.field === 'card.prompt'))
 })
