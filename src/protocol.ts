@@ -202,6 +202,11 @@ export type PeerWireMessage =
   | { t: 'agentCardsSync'; cards: AgentCard[] }
   | { t: 'agentFetch'; reqId: string; accountId: string; id: string }
   | { t: 'agentPkg'; reqId: string; pkg?: AgentPackage; error?: string }
+  | { t: 'agentOpen'; reqId: string; agentId: string; caller: string }
+  | { t: 'agentOpened'; reqId: string; ok: boolean; sessionId?: string; error?: string }
+  | { t: 'agentSend'; reqId: string; sessionId: string; text: string }
+  | { t: 'agentSent'; reqId: string; ok: boolean; text?: string; error?: string; turns?: number }
+  | { t: 'agentClose'; sessionId: string }
 
 /** 客户端 → 宿主 */
 export type ClientOutMessage =

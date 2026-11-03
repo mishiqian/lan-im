@@ -404,6 +404,24 @@ export class PeerNetwork {
       })()
     } else if (wire.t === 'agentPkg') {
       this.runtime.resolveAgentPackage(String(wire.reqId ?? ''), wire.pkg)
+    } else if (wire.t === 'agentOpen') {
+      void this.runtime.handleAgentOpen(String(wire.caller ?? ''), String(wire.agentId ?? '')).then((r) => {
+        const conn = this.connections.get(nodeId)
+        if (conn !== undefined && conn.readyState === WebSocket.OPEN) {
+          try { conn.send(JSON.stringify({ t: 'agentOpened', reqId: wire.reqId, ...r })) } catch { /* 忽略 */ }
+        }
+      })
+    } else if (wire.t === 'agentSend') {
+      void this.runtime.agentService.send(String(wire.sessionId ?? ''), String(wire.text ?? '')).then((r) => {
+        const conn = this.connections.get(nodeId)
+        if (conn !== undefined && conn.readyState === WebSocket.OPEN) {
+          try { conn.send(JSON.stringify({ t: 'agentSent', reqId: wire.reqId, ...r })) } catch { /* 忽略 */ }
+        }
+      })
+    } else if (wire.t === 'agentOpened' || wire.t === 'agentSent') {
+      this.runtime.resolveAgentReply(String(wire.reqId ?? ''), wire)
+    } else if (wire.t === 'agentClose') {
+      void this.runtime.agentService.close(String(wire.sessionId ?? ''))
     }
   }
 

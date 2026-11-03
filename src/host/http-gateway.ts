@@ -156,6 +156,18 @@ export class HttpGateway {
               if (action === 'agent.serve.close') {
                 return json(res, 200, { ok: await this.runtime.agentService.close(String(body.sessionId ?? '')) })
               }
+              if (action === 'agent.remote.open') {
+                return json(res, 200, await this.runtime.remoteAgentOpen(String(body.account ?? ''), String(body.agentId ?? '')))
+              }
+              if (action === 'agent.remote.send') {
+                return json(res, 200, await this.runtime.remoteAgentSend(String(body.account ?? ''), String(body.sessionId ?? ''), String(body.text ?? '')))
+              }
+              if (action === 'agent.remote.close') {
+                const owner = String(body.account ?? '')
+                const peer = this.runtime.peerNetwork.peersSnapshot().find((p) => p.accountId === owner)
+                if (peer !== undefined) this.runtime.peerNetwork.sendWire(peer.nodeId, { t: 'agentClose', sessionId: String(body.sessionId ?? '') })
+                return json(res, 200, { ok: true })
+              }
               if (action === 'agent.serve.list') {
                 return json(res, 200, { ok: true, sessions: this.runtime.agentService.list() })
               }

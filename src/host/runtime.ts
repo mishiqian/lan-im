@@ -163,6 +163,71 @@ export class HostRuntime {
     return true
   }
 
+  /** 远端 agent 调用的待回包请求（reqId → resolve） */
+  private readonly agentReplies = new Map<string, (payload: any) => void>()
+
+  /** 发一个 agent 调用帧并等回包；超时返回 undefined */
+  private async agentCall(nodeId: string, frame: any, timeoutMs = 30_000): Promise<any> {
+    const reqId = String(frame.reqId)
+    return await new Promise<any>((resolve) => {
+      const timer = setTimeout(() => { this.agentReplies.delete(reqId); resolve(undefined) }, timeoutMs)
+      this.agentReplies.set(reqId, (payload) => { clearTimeout(timer); this.agentReplies.delete(reqId); resolve(payload) })
+      const sent = this.peerNetwork.sendWire(nodeId, frame)
+      if (!sent) this.clients.logEvent(`agent 调用排队（对端未连上）：${frame.t}`)
+    })
+  }
+
+  /** 收到回包 */
+  resolveAgentReply(reqId: string, payload: unknown): void {
+    const done = this.agentReplies.get(reqId)
+    if (done !== undefined) done(payload)
+  }
+
+  /** 调用方：请对端开一个会话 */
+  async remoteAgentOpen(account: string, agentId: string): Promise<{ ok: boolean; sessionId?: string; error?: string }> {
+    const peer = this.peerNetwork.peersSnapshot().find((p) => p.accountId === account)
+    if (peer === undefined) return { ok: false, error: `@${account} 不在线` }
+    if (peer.trusted !== true) this.clients.logEvent(`警告：@${account} 的身份未验证，仍按 ACL 放行`)
+    const reply = await this.agentCall(peer.nodeId, { t: 'agentOpen', reqId: randomUUID(), agentId, caller: this.self.accountId })
+    if (reply === undefined) return { ok: false, error: '对端没有响应（可能离线或未开放调用）' }
+    return { ok: reply.ok === true, ...(reply.sessionId ? { sessionId: reply.sessionId } : {}), ...(reply.error ? { error: reply.error } : {}) }
+  }
+
+  /** 调用方：发一轮 */
+  async remoteAgentSend(account: string, sessionId: string, text: string): Promise<{ ok: boolean; text?: string; error?: string }> {
+    const peer = this.peerNetwork.peersSnapshot().find((p) => p.accountId === account)
+    if (peer === undefined) return { ok: false, error: `@${account} 不在线` }
+    const reply = await this.agentCall(peer.nodeId, { t: 'agentSend', reqId: randomUUID(), sessionId, text }, 180_000)
+    if (reply === undefined) return { ok: false, error: '对端没有响应（或这一轮超时）' }
+    return { ok: reply.ok === true, ...(reply.text ? { text: reply.text } : {}), ...(reply.error ? { error: reply.error } : {}) }
+  }
+
+  /** 作者侧：处理 open —— 校验卡片是否开放调用，再用 preset 或 prompt 落会话 */
+  async handleAgentOpen(fromAccount: string, agentId: string): Promise<{ ok: boolean; sessionId?: string; error?: string }> {
+    const card = this.agents.myAgents().find((c) => c.id === agentId)
+    if (card === undefined) return { ok: false, error: '没有这个 agent' }
+    if (card.exposure.callable !== true) return { ok: false, error: '@' + card.author.accountId + ' 没有开放调用' }
+
+    const preset = `${this.self.accountId}-${card.id}`
+    const common = {
+      callerId: fromAccount,
+      agentKey: `${card.author.accountId}/${card.id}`,
+      prompt: card.prompt,
+      tools: card.requires.tools,
+      budget: card.requires.budget,
+    }
+    const withPreset = await this.agentService.open({ ...common, preset })
+    if (withPreset.ok) return withPreset
+    // preset 行要重启才生效；没注册时退回「会话级 prompt」，别把调用直接打回去
+    this.clients.logEvent(`用 preset 开会话失败（${withPreset.error}），退回会话级 prompt`)
+    return await this.agentService.open(common)
+  }
+
+  /** 这个 agent 的 owner 是谁（用于把 sessionId 路由回正确的 peer） */
+  agentOwner(sessionId: string): string | undefined {
+    return this.agentService.get(sessionId)?.callerId
+  }
+
   /** 向某个 peer 拉取 agent 包；超时返回 undefined，不抛错。 */
   async fetchAgentPackage(account: string, id: string, timeoutMs = 15000): Promise<AgentPackage | undefined> {
     const peer = this.peerNetwork.peersSnapshot().find((p) => p.accountId === account)
