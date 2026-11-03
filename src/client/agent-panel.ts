@@ -27,6 +27,9 @@ export interface AgentPanelProps {
   /** 作者侧：别人正在用我的 agent 的会话 */
   sessions: RemoteSessionRecord[]
   onCloseSession: (remoteId: string) => void
+  /** agent 相关的错误（发布/安装/调用失败），显示在面板里而不是只在聊天窗顶部 */
+  error: string | null
+  onClearError: () => void
   selfAccount: string
   busy: boolean
   onPublish: (input: PublishInput) => void
@@ -158,12 +161,10 @@ function AgentDetail(props: {
 /** 发布弹层：只问必须问的——名字和角色设定；其余折叠 */
 function PublishForm(props: {
   busy: boolean
+  error: string | null
   selfAccount: string
   onClose: () => void
   loadBases: () => Promise<string[]>
-  /** 作者侧：别人正在用我的 agent 的会话 */
-  sessions: RemoteSessionRecord[]
-  onCloseSession: (remoteId: string) => void
   onSubmit: (input: PublishInput) => void
 }): React.ReactElement {
   const [name, setName] = React.useState('')
@@ -191,7 +192,11 @@ function PublishForm(props: {
     return () => { alive = false }
   }, [])
 
-  const canSubmit = name.trim() !== '' && prompt.trim().length >= 10 && base !== '' && !props.busy
+  const blockedBy = name.trim() === '' ? '先填名称'
+    : prompt.trim().length < 10 ? '角色设定至少 10 个字'
+    : base === '' ? '本机没有可用的基础 preset'
+    : ''
+  const canSubmit = blockedBy === '' && !props.busy
   const submit = (): void => {
     if (!canSubmit) return
     const tools: AgentToolGrant[] = []
@@ -264,8 +269,12 @@ function PublishForm(props: {
           )
         : null,
 
+      props.error !== null ? React.createElement('div', { className: 'lim-call-error' }, props.error) : null,
       React.createElement('div', { className: 'lim-agent-detail-actions' },
-        React.createElement('button', { className: 'lim-send', disabled: !canSubmit, onClick: submit }, props.busy ? '发布中…' : '发布'),
+        React.createElement('button', {
+          className: 'lim-send', disabled: !canSubmit, onClick: submit,
+          title: blockedBy === '' ? '发布' : blockedBy,
+        }, props.busy ? '发布中…' : '发布'),
         React.createElement('button', { className: 'lim-send ghost', onClick: props.onClose }, '取消'),
       ),
     ),
@@ -286,6 +295,9 @@ export function AgentPanel(props: AgentPanelProps): React.ReactElement {
       React.createElement('span', { className: 'lim-agents-title' }, 'Agent 集市'),
       React.createElement('button', { className: 'lim-send lim-publish', onClick: () => setPublishing(true) }, '发布'),
     ),
+    props.error !== null
+      ? React.createElement('div', { className: 'lim-agent-error', onClick: props.onClearError, title: '点击关闭' }, props.error)
+      : null,
     React.createElement('div', { className: 'lim-agents-scroll' },
       React.createElement('div', { className: 'lim-agent-section' }, '被别人调用'),
       props.sessions.filter((x) => x.status !== 'closed').length === 0
@@ -332,6 +344,7 @@ export function AgentPanel(props: AgentPanelProps): React.ReactElement {
     publishing
       ? React.createElement(PublishForm, {
           busy: props.busy,
+          error: props.error,
           selfAccount: props.selfAccount,
           loadBases: props.loadBases,
           onClose: () => setPublishing(false),

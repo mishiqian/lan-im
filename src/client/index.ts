@@ -47,6 +47,7 @@ function App(): React.ReactElement {
   const [mode, setMode] = React.useState<'chat' | 'agents'>('chat')
   const [agents, setAgents] = React.useState<AgentEntry[]>([])
   const [sessions, setSessions] = React.useState<RemoteSessionRecord[]>([])
+  const [agentError, setAgentError] = React.useState<string | null>(null)
   const [agentBusy, setAgentBusy] = React.useState(false)
 
   const wsRef = React.useRef<WebSocket | null>(null)
@@ -201,8 +202,9 @@ function App(): React.ReactElement {
   }
 
   const publishAgent = (input: PublishInput): void => {
-    if ((selfRef.current?.accountId ?? '') === '') { setError('先创建账号再发布'); return }
+    if ((selfRef.current?.accountId ?? '') === '') { setAgentError('先创建账号再发布'); return }
     setAgentBusy(true)
+    setAgentError(null)
     void apiPost({
       action: 'agent.publish',
       name: input.name,
@@ -216,10 +218,10 @@ function App(): React.ReactElement {
       sampleOut: input.sampleOut,
     })
       .then((r: any) => {
-        if (r?.ok !== true) setError('发布失败：' + ((r?.errors ?? []).map((e: any) => `${e.field} ${e.message}`).join('；') || '未知错误'))
+        if (r?.ok !== true) setAgentError('发布失败：' + ((r?.errors ?? []).map((e: any) => `${e.field} ${e.message}`).join('；') || '未知错误'))
         else void refreshAgents()
       })
-      .catch((e: any) => setError('发布失败：' + String(e)))
+      .catch((e: any) => setAgentError('发布失败：' + String(e?.message ?? e)))
       .finally(() => setAgentBusy(false))
   }
 
@@ -262,20 +264,22 @@ function App(): React.ReactElement {
 
   const installAgent = (entry: AgentEntry): void => {
     setAgentBusy(true)
+    setAgentError(null)
     void (async () => {
       const fetched = await apiPost({ action: 'agent.fetch', account: entry.card.author.accountId, id: entry.card.id })
-      if (fetched?.ok !== true) { setError('拉取失败：' + String(fetched?.error ?? '对端不在线')); return }
+      if (fetched?.ok !== true) { setAgentError('拉取失败：' + String(fetched?.error ?? '对端不在线')); return }
       const done = await apiPost({ action: 'agent.install', pkg: fetched.pkg })
-      if (done?.ok !== true) setError('安装失败：' + ((done?.errors ?? []).map((e: any) => e.message).join('；') || '未知错误'))
+      if (done?.ok !== true) setAgentError('安装失败：' + ((done?.errors ?? []).map((e: any) => e.message).join('；') || '未知错误'))
+      else if (done?.restartRequired === true) setAgentError('已安装。重启 dsh 后会在 preset 列表里出现；现在也可以直接调用。')
       await refreshAgents()
-    })().catch((e: any) => setError('安装失败：' + String(e))).finally(() => setAgentBusy(false))
+    })().catch((e: any) => setAgentError('安装失败：' + String(e?.message ?? e))).finally(() => setAgentBusy(false))
   }
 
   const uninstallAgent = (entry: AgentEntry): void => {
     setAgentBusy(true)
     void apiPost({ action: 'agent.uninstall', account: entry.card.author.accountId, id: entry.card.id })
-      .then((r: any) => { if (r?.ok !== true) setError('卸载失败'); return refreshAgents() })
-      .catch((e: any) => setError('卸载失败：' + String(e)))
+      .then((r: any) => { if (r?.ok !== true) setAgentError('卸载失败'); return refreshAgents() })
+      .catch((e: any) => setAgentError('卸载失败：' + String(e?.message ?? e)))
       .finally(() => setAgentBusy(false))
   }
 
@@ -355,6 +359,8 @@ function App(): React.ReactElement {
         loadBases,
         sessions,
         onCloseSession: closeSession,
+        error: agentError,
+        onClearError: () => setAgentError(null),
         selfAccount: self?.accountId ?? '',
         busy: agentBusy,
         onPublish: publishAgent,
