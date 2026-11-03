@@ -46,6 +46,10 @@ export interface Peer {
   ip: string
   wsPort: number
   lastSeen: number
+  /** 对方公钥指纹；旧版本可能没有 */
+  keyId?: string
+  /** 身份是否已验证：true=签名通过且钉住一致；false=未验证/冲突 */
+  trusted?: boolean
 }
 
 export type ChannelKind = 'public' | 'private'
@@ -170,7 +174,13 @@ export interface AgentEntry {
 
 /** 节点间 WebSocket 消息帧 */
 export type PeerWireMessage =
-  | { t: 'hello'; accountId: string; nodeId: string; name: string; pskId?: string; channels?: Channel[]; sharedFiles?: SharedFile[] }
+  | {
+      t: 'hello'; accountId: string; nodeId: string; name: string; pskId?: string
+      channels?: Channel[]; sharedFiles?: SharedFile[]
+      /** 身份：公钥 + 指纹 + 时间戳 + 对 (nodeId|accountId|ts) 的签名 */
+      pubkey?: string; keyId?: string; ts?: number; sig?: string
+    }
+  | { t: 'helloAck'; accountId: string; nodeId: string; pubkey?: string; keyId?: string; ts?: number; sig?: string }
   | { t: 'msg'; id: string; from: string; fromName: string; to: string; toType: TargetType; body: string; ts: number }
   | { t: 'ack'; id: string }
   | { t: 'recall'; id: string; from: string }

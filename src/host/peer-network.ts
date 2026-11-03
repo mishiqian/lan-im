@@ -32,6 +32,7 @@ export class PeerNetwork {
 
   /** 发现通道上线上报：PSK 过滤 + nodeId 去重 + 触发确定性连接。 */
   upsertPeer(seed: PeerSeed): void {
+    const known = this.identityByAccount.get(seed.accountId)
     if (seed.nodeId === this.runtime.self.nodeId) return
     if (seed.accountId === '' || !seed.ip || !seed.wsPort) return
     if (this.runtime.psk !== '' && seed.pskId !== pskIdFor(this.runtime.psk)) return
@@ -39,6 +40,7 @@ export class PeerNetwork {
     this.peers.set(seed.nodeId, {
       accountId: seed.accountId, name: seed.name || seed.accountId,
       nodeId: seed.nodeId, ip: seed.ip, wsPort: seed.wsPort, lastSeen: Date.now(),
+      ...(known === undefined ? {} : { keyId: known.keyId, trusted: known.trusted }),
     })
     if (isNew) {
       this.runtime.messageStore.pushSystem(`${seed.name || seed.accountId} 已上线`)
@@ -50,6 +52,23 @@ export class PeerNetwork {
 
   private messageToWire(m: ChatMessage): PeerWireMessage {
     return { t: 'msg', id: m.id, from: m.from, fromName: m.fromName, to: m.to, toType: m.toType, body: m.body, ts: m.ts }
+  }
+
+  /** 记住每个账号最近一次验证结果；peer 后到也能补上 */
+  private readonly identityByAccount = new Map<string, { keyId?: string; trusted: boolean }>()
+
+  /** 身份验完/冲突后回写到该账号的所有 peer 条目 */
+  applyIdentity(accountId: string, keyId: string | undefined, trusted: boolean): void {
+    const prev = this.identityByAccount.get(accountId)
+    this.identityByAccount.set(accountId, { keyId: keyId ?? prev?.keyId, trusted })
+    let changed = false
+    for (const peer of this.peers.values()) {
+      if (peer.accountId !== accountId) continue
+      if (keyId !== undefined) peer.keyId = keyId
+      peer.trusted = trusted
+      changed = true
+    }
+    if (changed) this.runtime.clients.peers(this.peersSnapshot())
   }
 
   broadcastWire(wire: PeerWireMessage): void {
@@ -141,6 +160,7 @@ export class PeerNetwork {
       this.connections.set(nodeId, ws)
       ws.on('open', () => {
         if (this.runtime.stopped) { ws.close(); return }
+        const id = this.runtime.signHandshake(this.runtime.self.nodeId)
         ws.send(JSON.stringify({
           t: 'hello',
           accountId: this.runtime.self.accountId,
@@ -149,6 +169,7 @@ export class PeerNetwork {
           pskId: pskIdFor(this.runtime.psk),
           channels: this.runtime.channelRegistry.listForPeer(peer.accountId),
           sharedFiles: this.runtime.sharedFileStore.listForPeer(peer.accountId),
+          ...(id === undefined ? {} : { pubkey: id.pubkey, keyId: id.keyId, ts: id.ts, sig: id.sig }),
         }))
         this.flushConnection(peer, ws)
         this.runtime.syncAgentsTo(nodeId)
@@ -205,7 +226,25 @@ export class PeerNetwork {
             this.runtime.sharedFileStore.notifyClients()
           }
           const peerAccount = typeof hello.accountId === 'string' ? hello.accountId : ''
+          void this.runtime.observePeerIdentity({
+            accountId: peerAccount, nodeId,
+            pubkey: hello.pubkey, keyId: hello.keyId, ts: hello.ts, sig: hello.sig,
+          }).then((trusted) => {
+            const target = this.peers.get(nodeId)
+            if (target !== undefined) {
+              target.trusted = trusted
+              if (typeof hello.keyId === 'string') target.keyId = hello.keyId
+              this.runtime.clients.peers(this.peersSnapshot())
+            }
+          })
+          const ack = this.runtime.signHandshake(this.runtime.self.nodeId)
           try {
+            ws.send(JSON.stringify({
+              t: 'helloAck',
+              accountId: this.runtime.self.accountId,
+              nodeId: this.runtime.self.nodeId,
+              ...(ack === undefined ? {} : { pubkey: ack.pubkey, keyId: ack.keyId, ts: ack.ts, sig: ack.sig }),
+            }))
             ws.send(JSON.stringify({
               t: 'channelsSync',
               channels: this.runtime.channelRegistry.listForPeer(peerAccount),
@@ -260,6 +299,20 @@ export class PeerNetwork {
   private handlePeerMessage(nodeId: string, data: unknown): void {
     let wire: any
     try { wire = JSON.parse(String(data)) } catch { return }
+    if (wire.t === 'helloAck') {
+      void this.runtime.observePeerIdentity({
+        accountId: String(wire.accountId ?? ''), nodeId: String(wire.nodeId ?? nodeId),
+        pubkey: wire.pubkey, keyId: wire.keyId, ts: wire.ts, sig: wire.sig,
+      }).then((trusted) => {
+        const peer = this.peers.get(nodeId)
+        if (peer !== undefined) {
+          peer.trusted = trusted
+          if (typeof wire.keyId === 'string') peer.keyId = wire.keyId
+          this.runtime.clients.peers(this.peersSnapshot())
+        }
+      })
+      return
+    }
     if (wire.t === 'msg') {
       if (wire.from === this.runtime.self.accountId) return
       if (wire.toType === 'account' && wire.to !== this.runtime.self.accountId) return

@@ -14,6 +14,7 @@ import { SharedFileStore } from './shared-file-store.ts'
 import { Settings } from './settings.ts'
 import { HttpGateway } from './http-gateway.ts'
 import { AgentRegistry } from './agent-registry.ts'
+import { IdentityStore, TrustStore, handshakePayload, type IdentityFile } from './identity.ts'
 import { AgentInstaller } from './agent-install.ts'
 import type { AgentPackage } from '../protocol.ts'
 import { homedir } from 'node:os'
@@ -43,6 +44,11 @@ export class HostRuntime {
   readonly discovery = new Discovery(this)
   readonly messaging = new Messaging(this)
   readonly settings = new Settings(this)
+  readonly identity = new IdentityStore(join(this.storage.dataDir(), 'identity'))
+  readonly trust = new TrustStore(join(this.storage.dataDir(), 'trust.json'))
+  private identityData: IdentityFile | undefined
+  /** 诊断：本次进程里观察过多少次对端身份 */
+  identityObserved = 0
   readonly agents = new AgentRegistry({
     dir: join(this.storage.dataDir(), 'agents'),
     selfAccount: () => this.self.accountId,
@@ -59,6 +65,10 @@ export class HostRuntime {
 
   async start(): Promise<void> {
     await this.storage.adoptLegacyData()
+    const idResult = await this.identity.loadOrCreate()
+    this.identityData = idResult.identity
+    await this.trust.load()
+    if (idResult.created) this.clients.logEvent(`已生成本机局域网身份 ${idResult.identity.keyId}`)
     await this.agents.load()
     const config = await this.storage.readConfig()
     await this.storage.ensureDataDir()
@@ -96,6 +106,51 @@ export class HostRuntime {
     this.discovery.stop()
     this.gateway.closeClients()
     this.clients.closeAll()
+  }
+
+  get keyId(): string { return this.identityData?.keyId ?? '' }
+
+  /** 给 hello / helloAck 签名 */
+  signHandshake(nodeId: string): { pubkey: string; keyId: string; ts: number; sig: string } | undefined {
+    const data = this.identityData
+    if (data === undefined) return undefined
+    const ts = Date.now()
+    const payload = handshakePayload({ nodeId, accountId: this.self.accountId, ts })
+    return { pubkey: data.publicKey, keyId: data.keyId, ts, sig: this.identity.sign(payload) }
+  }
+
+  /**
+   * 校验对端身份并钉住。
+   * 返回 trusted：true=签名有效且钉住一致；false=未提供/无效/冲突（冲突会写告警）。
+   */
+  async observePeerIdentity(input: { accountId: string; nodeId: string; pubkey?: string; keyId?: string; ts?: number; sig?: string }): Promise<boolean> {
+    this.identityObserved += 1
+    const { accountId, nodeId, pubkey, keyId, ts, sig } = input
+    if (typeof pubkey !== 'string' || typeof keyId !== 'string' || typeof ts !== 'number' || typeof sig !== 'string') {
+      this.clients.logEvent(`@${accountId} 未提供身份（旧版本），本次连接标记为未验证`)
+      this.peerNetwork.applyIdentity(accountId, undefined, false)
+      return false
+    }
+    const ok = IdentityStore.verifyHandshake({ nodeId, accountId, ts, publicKey: pubkey, keyId, sig })
+    if (!ok) {
+      this.clients.logEvent(`拒绝 @${accountId} 的身份：签名无效或时间戳过期`)
+      this.peerNetwork.applyIdentity(accountId, keyId, false)
+      return false
+    }
+    const outcome = await this.trust.observe(accountId, keyId, pubkey)
+    if (outcome === 'new') {
+      this.clients.logEvent(`首次见到 @${accountId}，已钉住身份 ${keyId}`)
+      this.peerNetwork.applyIdentity(accountId, keyId, true)
+      return true
+    }
+    if (outcome === 'conflict') {
+      const pinned = this.trust.get(accountId)?.keyId ?? '?'
+      this.clients.logEvent(`身份冲突：@${accountId} 使用了新的公钥（钉住 ${pinned}，本次 ${keyId}），可能有人冒充`)
+      this.peerNetwork.applyIdentity(accountId, pinned, false)
+      return false
+    }
+    this.peerNetwork.applyIdentity(accountId, keyId, true)
+    return true
   }
 
   /** 向某个 peer 拉取 agent 包；超时返回 undefined，不抛错。 */

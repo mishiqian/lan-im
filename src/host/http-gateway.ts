@@ -219,6 +219,7 @@ export class HttpGateway {
               messages: this.runtime.messageStore.messages.slice(-HISTORY_LIMIT),
               sharedFiles: this.runtime.sharedFileStore.list(),
               agents: this.runtime.agents.list(),
+              identity: { keyId: this.runtime.keyId, observed: this.runtime.identityObserved, pins: this.runtime.trust.list().length },
               clients: this.runtime.clients.count,
               log: this.runtime.clients.log,
             })
