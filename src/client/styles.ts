@@ -253,6 +253,7 @@ export const CSS = `
 .lim-input:disabled{opacity:.45;cursor:not-allowed}
 .lim-textarea{flex:none;resize:vertical;font-family:inherit}
 .lim-empty-compact{padding:14px;gap:6px}
+.lim-call-error{padding:8px 10px;border-radius:8px;background:rgba(220,38,38,.10);color:#fca5a5;font-size:12px;line-height:1.5}
 .lim-advanced-toggle{align-self:flex-start;border:none;background:none;color:var(--lim-muted);font:inherit;font-size:12px;cursor:pointer;padding:4px 0}
 .lim-advanced-toggle:hover{color:var(--lim-fg)}
 .lim-advanced{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:10px;background:var(--lim-surface)}

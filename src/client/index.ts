@@ -216,6 +216,29 @@ function App(): React.ReactElement {
       .finally(() => setAgentBusy(false))
   }
 
+  // 每个「对方 agent」复用一个远端会话，避免每次调用都新开
+  const callSessions = React.useRef(new Map<string, string>())
+  const callAgent = async (entry: AgentEntry, text: string): Promise<{ ok: boolean; text?: string; error?: string }> => {
+    const account = entry.card.author.accountId
+    const key = `${account}/${entry.card.id}`
+    try {
+      let sessionId = callSessions.current.get(key)
+      if (sessionId === undefined) {
+        const opened = await apiPost({ action: 'agent.remote.open', account, agentId: entry.card.id })
+        if (opened?.ok !== true) return { ok: false, error: String(opened?.error ?? '开会话失败') }
+        sessionId = String(opened.sessionId)
+        callSessions.current.set(key, sessionId)
+      }
+      const sent = await apiPost({ action: 'agent.remote.send', account, sessionId, text })
+      if (sent?.ok === true) return { ok: true, text: String(sent.text ?? '') }
+      callSessions.current.delete(key)
+      return { ok: false, error: String(sent?.error ?? '执行失败') }
+    } catch (err: any) {
+      callSessions.current.delete(key)
+      return { ok: false, error: String(err?.message ?? err) }
+    }
+  }
+
   const loadBases = async (): Promise<string[]> => {
     try {
       const r = await apiPost({ action: 'agent.bases' })
@@ -321,6 +344,7 @@ function App(): React.ReactElement {
         onPublish: publishAgent,
         onInstall: installAgent,
         onUninstall: uninstallAgent,
+        onCall: callAgent,
         onClose: () => setMode('chat'),
       }),
       self, peers, channels, messages, files, sharedFiles, logs, connected, unread, muted, active, activeType, searchResults,

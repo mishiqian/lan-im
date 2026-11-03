@@ -29,6 +29,8 @@ export interface AgentPanelProps {
   onPublish: (input: PublishInput) => void
   onInstall: (entry: AgentEntry) => void
   onUninstall: (entry: AgentEntry) => void
+  /** 直接调用别人的 agent：跑在对方机器上 */
+  onCall: (entry: AgentEntry, text: string) => Promise<{ ok: boolean; text?: string; error?: string }>
   onClose: () => void
 }
 
@@ -68,8 +70,26 @@ function AgentDetail(props: {
   onClose: () => void
   onInstall: () => void
   onUninstall: () => void
+  onCall: (text: string) => Promise<{ ok: boolean; text?: string; error?: string }>
 }): React.ReactElement {
   const { card } = props.entry
+  const callable = props.entry.source === 'peer' && card.exposure.callable === true
+  const [input, setInput] = React.useState('')
+  const [running, setRunning] = React.useState(false)
+  const [result, setResult] = React.useState('')
+  const [failure, setFailure] = React.useState('')
+  const send = (): void => {
+    const text = input.trim()
+    if (text === '' || running) return
+    setRunning(true); setFailure(''); setResult('')
+    void props.onCall(text)
+      .then((r) => {
+        if (r.ok) setResult(r.text ?? '（没有文本回复）')
+        else setFailure(r.error ?? '执行失败')
+      })
+      .catch((err: any) => setFailure(String(err)))
+      .finally(() => setRunning(false))
+  }
   return React.createElement('div', { className: 'lim-modal', onClick: props.onClose },
     React.createElement('div', { className: 'lim-modal-box wide lim-agent-detail', onClick: (e: any) => e.stopPropagation() },
       React.createElement('div', { className: 'lim-agent-detail-head' },
@@ -104,6 +124,23 @@ function AgentDetail(props: {
               React.createElement('div', { className: 'lim-sample-body' }, s.out),
             )),
           ),
+
+      callable
+        ? React.createElement(React.Fragment, null,
+            React.createElement('div', { className: 'lim-agent-block-title' }, '直接调用（跑在对方机器上）'),
+            React.createElement('textarea', {
+              className: 'lim-input lim-textarea', rows: 3, value: input,
+              placeholder: '给它一句话，结果会带回来',
+              onChange: (e: any) => setInput(e.target.value),
+            }),
+            React.createElement('div', { className: 'lim-agent-detail-actions' },
+              React.createElement('button', { className: 'lim-send', disabled: running || input.trim() === '', onClick: send },
+                running ? '执行中…' : '发送'),
+            ),
+            failure !== '' ? React.createElement('div', { className: 'lim-call-error' }, failure) : null,
+            result !== '' ? React.createElement('div', { className: 'lim-prompt' }, result) : null,
+          )
+        : null,
 
       React.createElement('div', { className: 'lim-agent-detail-actions' },
         props.entry.installed
@@ -265,6 +302,7 @@ export function AgentPanel(props: AgentPanelProps): React.ReactElement {
           onClose: () => setDetail(null),
           onInstall: () => { props.onInstall(current); setDetail(null) },
           onUninstall: () => { props.onUninstall(current); setDetail(null) },
+          onCall: (text: string) => props.onCall(current, text),
         })
       : null,
     publishing
