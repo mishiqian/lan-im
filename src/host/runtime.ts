@@ -15,6 +15,7 @@ import { Settings } from './settings.ts'
 import { HttpGateway } from './http-gateway.ts'
 import { AgentRegistry } from './agent-registry.ts'
 import { IdentityStore, TrustStore, handshakePayload, type IdentityFile } from './identity.ts'
+import { AgentService } from './agent-service.ts'
 import { AgentInstaller } from './agent-install.ts'
 import type { AgentPackage } from '../protocol.ts'
 import { homedir } from 'node:os'
@@ -44,6 +45,9 @@ export class HostRuntime {
   readonly discovery = new Discovery(this)
   readonly messaging = new Messaging(this)
   readonly settings = new Settings(this)
+  /** 宿主上下文：agentService 需要它来创建真实 session */
+  ctx: any
+  readonly agentService = new AgentService(this)
   readonly identity = new IdentityStore(join(this.storage.dataDir(), 'identity'))
   readonly trust = new TrustStore(join(this.storage.dataDir(), 'trust.json'))
   private identityData: IdentityFile | undefined
@@ -184,6 +188,11 @@ export class HostRuntime {
     const cards = this.agents.myAgents()
     if (cards.length === 0) return
     this.peerNetwork.sendWire(nodeId, { t: 'agentCardsSync', cards })
+  }
+
+  /** 由插件入口注入宿主 ctx（agent/session 服务都在上面） */
+  attach(ctx: any): void {
+    this.ctx = ctx
   }
 
   /** 当前配置视角账号；沿用旧文件里的 passwordHash/salt。 */

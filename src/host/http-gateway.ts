@@ -134,6 +134,28 @@ export class HttpGateway {
                 const done = await this.runtime.agentInstaller.uninstall(String(body.account ?? ''), String(body.id ?? ''))
                 return json(res, 200, { ok: done })
               }
+              if (action === 'agent.serve.open') {
+                const r = await this.runtime.agentService.open({
+                  callerId: String(body.caller ?? this.runtime.self.accountId),
+                  agentKey: String(body.agent ?? ''),
+                  preset: typeof body.preset === 'string' ? body.preset : undefined,
+                  provider: typeof body.provider === 'string' ? body.provider : undefined,
+                  model: typeof body.model === 'string' ? body.model : undefined,
+                  tools: Array.isArray(body.tools) ? body.tools : [],
+                  budget: typeof body.budget === 'object' && body.budget !== null ? body.budget : undefined,
+                })
+                return json(res, 200, r)
+              }
+              if (action === 'agent.serve.send') {
+                const r = await this.runtime.agentService.send(String(body.sessionId ?? ''), String(body.text ?? ''))
+                return json(res, 200, r)
+              }
+              if (action === 'agent.serve.close') {
+                return json(res, 200, { ok: await this.runtime.agentService.close(String(body.sessionId ?? '')) })
+              }
+              if (action === 'agent.serve.list') {
+                return json(res, 200, { ok: true, sessions: this.runtime.agentService.list() })
+              }
               if (action === 'log') {
                 this.runtime.clients.logEvent(String(body.message ?? '').slice(0, 300))
                 return json(res, 200, { ok: true })
