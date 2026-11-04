@@ -240,14 +240,24 @@ function App(): React.ReactElement {
     const account = entry.card.author.accountId
     const key = `${account}/${entry.card.id}`
     try {
-      let sessionId = callSessions.current.get(key)
-      if (sessionId === undefined) {
+      const openRemote = async (): Promise<string | undefined> => {
         const opened = await apiPost({ action: 'agent.remote.open', account, agentId: entry.card.id })
-        if (opened?.ok !== true) return { ok: false, error: String(opened?.error ?? '开会话失败') }
-        sessionId = String(opened.sessionId)
-        callSessions.current.set(key, sessionId)
+        if (opened?.ok !== true) {
+          setAgentError(String(opened?.error ?? '开会话失败'))
+          return undefined
+        }
+        callSessions.current.set(key, String(opened.sessionId))
+        return String(opened.sessionId)
       }
-      const sent = await apiPost({ action: 'agent.remote.send', account, sessionId, text })
+      let sessionId = callSessions.current.get(key) ?? (await openRemote())
+      if (sessionId === undefined) return { ok: false, error: '开会话失败' }
+      let sent = await apiPost({ action: 'agent.remote.send', account, sessionId, text })
+      if (sent?.ok !== true) {
+        callSessions.current.delete(key)
+        const reopened = await openRemote()
+        if (reopened === undefined) return { ok: false, error: String(sent?.error ?? '执行失败') }
+        sent = await apiPost({ action: 'agent.remote.send', account, sessionId: reopened, text })
+      }
       if (sent?.ok === true) return { ok: true, text: String(sent.text ?? '') }
       callSessions.current.delete(key)
       return { ok: false, error: String(sent?.error ?? '执行失败') }
@@ -268,15 +278,27 @@ function App(): React.ReactElement {
   const localSessions = React.useRef(new Map<string, string>())
   const localCall = async (entry: AgentEntry, text: string): Promise<{ ok: boolean; text?: string; error?: string }> => {
     const key = `${entry.card.author.accountId}/${entry.card.id}`
-    try {
-      let sessionId = localSessions.current.get(key)
-      if (sessionId === undefined) {
-        const opened = await apiPost({ action: 'agent.local.open', account: entry.card.author.accountId, id: entry.card.id })
-        if (opened?.ok !== true) return { ok: false, error: String(opened?.error ?? '本机开会话失败') }
-        sessionId = String(opened.sessionId)
-        localSessions.current.set(key, sessionId)
+    const openLocal = async (): Promise<string | undefined> => {
+      const opened = await apiPost({ action: 'agent.local.open', account: entry.card.author.accountId, id: entry.card.id })
+      if (opened?.ok !== true) {
+        setAgentError(String(opened?.error ?? '本机开会话失败'))
+        return undefined
       }
-      const sent = await apiPost({ action: 'agent.serve.send', sessionId, text })
+      localSessions.current.set(key, String(opened.sessionId))
+      return String(opened.sessionId)
+    }
+    try {
+      let sessionId = localSessions.current.get(key) ?? (await openLocal())
+      if (sessionId === undefined) return { ok: false, error: '本机开会话失败' }
+      let sent = await apiPost({ action: 'agent.serve.send', sessionId, text })
+      if (sent?.ok !== true) {
+        // 宿主重启或会话被断开后，缓存里的 id 就失效了：自动重开一次再发
+        localSessions.current.delete(key)
+        const reopened = await openLocal()
+        if (reopened === undefined) return { ok: false, error: String(sent?.error ?? '执行失败') }
+        sessionId = reopened
+        sent = await apiPost({ action: 'agent.serve.send', sessionId, text })
+      }
       if (sent?.ok === true) return { ok: true, text: String(sent.text ?? '') }
       localSessions.current.delete(key)
       return { ok: false, error: String(sent?.error ?? '执行失败') }
