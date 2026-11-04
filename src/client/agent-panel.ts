@@ -39,6 +39,7 @@ export interface AgentPanelProps {
   onUninstall: (entry: AgentEntry) => void
   /** 直接调用别人的 agent：跑在对方机器上 */
   onCall: (entry: AgentEntry, text: string) => Promise<{ ok: boolean; text?: string; error?: string }>
+  onLocalCall: (entry: AgentEntry, text: string) => Promise<{ ok: boolean; text?: string; error?: string }>
   onClose: () => void
 }
 
@@ -79,10 +80,15 @@ function AgentDetail(props: {
   onInstall: () => void
   onUninstall: () => void
   onCall: (text: string) => Promise<{ ok: boolean; text?: string; error?: string }>
+  onLocalCall: (text: string) => Promise<{ ok: boolean; text?: string; error?: string }>
   onEdit: () => void
 }): React.ReactElement {
   const { card } = props.entry
+  const canRunLocal = props.entry.installed || props.entry.source === 'mine'
   const callable = props.entry.source === 'peer' && card.exposure.callable === true
+  const canRun = canRunLocal || callable
+  const runLabel = canRunLocal ? '在本机试跑（用你的模型跑它的角色设定）' : '直接调用（跑在对方机器上）'
+  const runButton = canRunLocal ? '试跑' : '发送'
   const [input, setInput] = React.useState('')
   const [running, setRunning] = React.useState(false)
   const [result, setResult] = React.useState('')
@@ -91,7 +97,7 @@ function AgentDetail(props: {
     const text = input.trim()
     if (text === '' || running) return
     setRunning(true); setFailure(''); setResult('')
-    void props.onCall(text)
+    void (canRunLocal ? props.onLocalCall(text) : props.onCall(text))
       .then((r) => {
         if (r.ok) setResult(r.text ?? '（没有文本回复）')
         else setFailure(r.error ?? '执行失败')
@@ -134,9 +140,9 @@ function AgentDetail(props: {
             )),
           ),
 
-      callable
+      canRun
         ? React.createElement(React.Fragment, null,
-            React.createElement('div', { className: 'lim-agent-block-title' }, '直接调用（跑在对方机器上）'),
+            React.createElement('div', { className: 'lim-agent-block-title' }, runLabel),
             React.createElement('textarea', {
               className: 'lim-input lim-textarea', rows: 3, value: input,
               placeholder: '给它一句话，结果会带回来',
@@ -144,7 +150,7 @@ function AgentDetail(props: {
             }),
             React.createElement('div', { className: 'lim-agent-detail-actions' },
               React.createElement('button', { className: 'lim-send', disabled: running || input.trim() === '', onClick: send },
-                running ? '执行中…' : '发送'),
+                running ? '执行中…' : runButton),
             ),
             failure !== '' ? React.createElement('div', { className: 'lim-call-error' }, failure) : null,
             result !== '' ? React.createElement('div', { className: 'lim-prompt' }, result) : null,
@@ -352,6 +358,7 @@ export function AgentPanel(props: AgentPanelProps): React.ReactElement {
           onInstall: () => { props.onInstall(current); setDetail(null) },
           onUninstall: () => { props.onUninstall(current); setDetail(null) },
           onCall: (text: string) => props.onCall(current, text),
+          onLocalCall: (text: string) => props.onLocalCall(current, text),
           onEdit: () => {
             const c = current.card
             setEditing({

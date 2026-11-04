@@ -239,9 +239,24 @@ export class HostRuntime {
       tools: card.requires.tools,
       budget: card.requires.budget,
     }
+    return await this.openAgentSession(card, fromAccount)
+  }
+
+  /**
+   * 用某个 agent 开一个托管会话：优先用它安装出来的 preset（那样工具/配置最全），
+   * preset 还没注册（要重启才生效）时退回「会话级 prompt」，不让使用被部署细节卡住。
+   */
+  async openAgentSession(card: { id: string; author: { accountId: string }; prompt: string; requires: { tools: any[]; budget: any } }, callerId: string) {
+    const preset = `${card.author.accountId}-${card.id}`
+    const common = {
+      callerId,
+      agentKey: `${card.author.accountId}/${card.id}`,
+      prompt: card.prompt,
+      tools: card.requires.tools,
+      budget: card.requires.budget,
+    }
     const withPreset = await this.agentService.open({ ...common, preset })
     if (withPreset.ok) return withPreset
-    // preset 行要重启才生效；没注册时退回「会话级 prompt」，别把调用直接打回去
     this.clients.logEvent(`用 preset 开会话失败（${withPreset.error}），退回会话级 prompt`)
     return await this.agentService.open(common)
   }

@@ -174,6 +174,18 @@ export class HttpGateway {
                 })
                 return json(res, 200, r)
               }
+              if (action === 'agent.local.open') {
+                // 在本机用某个已安装（或自己发布）的 agent 开一个会话
+                const account = String(body.account ?? '')
+                const id = String(body.id ?? '')
+                const entry = this.runtime.agents.list().find(
+                  (e) => e.card.id === id && e.card.author.accountId === account && (e.source === 'mine' || e.installed),
+                )
+                if (entry === undefined) return json(res, 200, { ok: false, error: '没有找到这个 agent（可能还没安装）' })
+                const card = entry.card
+                const r = await this.runtime.openAgentSession(card, this.runtime.self.accountId)
+                return json(res, 200, r)
+              }
               if (action === 'agent.serve.send') {
                 const r = await this.runtime.agentService.send(String(body.sessionId ?? ''), String(body.text ?? ''))
                 return json(res, 200, r)

@@ -264,6 +264,28 @@ function App(): React.ReactElement {
       .catch((err: any) => setError('断开失败：' + String(err?.message ?? err)))
   }
 
+  // 本机试跑：装到自己机器上的 agent 用本机模型直接跑，不依赖对方在线
+  const localSessions = React.useRef(new Map<string, string>())
+  const localCall = async (entry: AgentEntry, text: string): Promise<{ ok: boolean; text?: string; error?: string }> => {
+    const key = `${entry.card.author.accountId}/${entry.card.id}`
+    try {
+      let sessionId = localSessions.current.get(key)
+      if (sessionId === undefined) {
+        const opened = await apiPost({ action: 'agent.local.open', account: entry.card.author.accountId, id: entry.card.id })
+        if (opened?.ok !== true) return { ok: false, error: String(opened?.error ?? '本机开会话失败') }
+        sessionId = String(opened.sessionId)
+        localSessions.current.set(key, sessionId)
+      }
+      const sent = await apiPost({ action: 'agent.serve.send', sessionId, text })
+      if (sent?.ok === true) return { ok: true, text: String(sent.text ?? '') }
+      localSessions.current.delete(key)
+      return { ok: false, error: String(sent?.error ?? '执行失败') }
+    } catch (err: any) {
+      localSessions.current.delete(key)
+      return { ok: false, error: String(err?.message ?? err) }
+    }
+  }
+
   const loadBases = async (): Promise<string[]> => {
     try {
       let r: any
@@ -301,7 +323,7 @@ function App(): React.ReactElement {
       if (fetched?.ok !== true) { setAgentError('拉取失败：' + String(fetched?.error ?? '对端不在线')); return }
       const done = await apiPost({ action: 'agent.install', pkg: fetched.pkg })
       if (done?.ok !== true) setAgentError('安装失败：' + ((done?.errors ?? []).map((e: any) => e.message).join('；') || '未知错误'))
-      else if (done?.restartRequired === true) setAgentError('已安装。重启 dsh 后会在 preset 列表里出现；现在也可以直接调用。')
+      else if (done?.restartRequired === true) setAgentError('已安装：详情页可以直接「试跑」，重启 dsh 后也会出现在 preset 列表里供新会话选择。')
       await refreshAgents()
     })().catch((e: any) => setAgentError('安装失败：' + String(e?.message ?? e))).finally(() => setAgentBusy(false))
   }
@@ -398,6 +420,7 @@ function App(): React.ReactElement {
         onInstall: installAgent,
         onUninstall: uninstallAgent,
         onCall: callAgent,
+        onLocalCall: localCall,
         onClose: () => setMode('chat'),
       }),
       self, peers, channels, messages, files, sharedFiles, logs, connected, unread, muted, active, activeType, searchResults,
