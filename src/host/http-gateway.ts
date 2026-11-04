@@ -8,6 +8,13 @@ import { json, readBody } from './util.ts'
 import { ClientBridge } from './client-bridge.ts'
 import { buildAgentPackage, listBasePresets } from './agent-build.ts'
 
+/** 1.0.0 → 1.0.1；非 semver 时退回 1.0.0 */
+function nextPatch(version: string): string {
+  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(version.trim())
+  if (m === null) return '1.0.0'
+  return `${m[1]}.${m[2]}.${Number(m[3]) + 1}`
+}
+
 export interface WebServer {
   register(route: {
     kind: 'exact' | 'prefix'
@@ -112,10 +119,16 @@ export class HttpGateway {
                 return json(res, 200, { ok: true, bases: await listBasePresets(this.runtime.presetsRoot) })
               }
               if (action === 'agent.publish') {
+                const editId = typeof body.id === 'string' && body.id !== '' ? body.id : undefined
+                const existing = editId === undefined ? undefined : this.runtime.agents.myAgents().find((c) => c.id === editId)
+                if (editId !== undefined && existing === undefined) {
+                  return json(res, 200, { ok: false, errors: [{ field: 'id', message: '要编辑的 agent 不存在' }] })
+                }
                 const built = await buildAgentPackage({
                   presetsDir: this.runtime.presetsRoot,
                   base: String(body.base ?? ''),
                   accountId: this.runtime.self.accountId,
+                  ...(existing === undefined ? {} : { id: existing.id, version: nextPatch(existing.version) }),
                   name: String(body.name ?? ''),
                   prompt: String(body.prompt ?? ''),
                   summary: typeof body.summary === 'string' ? body.summary : undefined,

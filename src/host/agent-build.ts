@@ -68,6 +68,8 @@ export interface BuildInput {
   presetsDir: string
   base: string
   accountId: string
+  /** 编辑已有 agent 时沿用原 id */
+  id?: string
   name: string
   prompt: string
   summary?: string
@@ -121,7 +123,7 @@ export async function buildAgentPackage(input: BuildInput): Promise<BuildResult>
   const tools = input.tools ?? []
   const card: AgentCard = {
     schema: 1,
-    id: slugFromName(name),
+    id: input.id !== undefined && input.id !== '' ? input.id : slugFromName(name),
     version: input.version ?? '1.0.0',
     name,
     summary: summary.slice(0, 80),

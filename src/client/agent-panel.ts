@@ -8,6 +8,8 @@ import type { AgentCard, AgentEntry, AgentToolGrant, RemoteSessionRecord } from 
 import { Icon, LanImMark } from './components.ts'
 
 export interface PublishInput {
+  /** 编辑已有 agent 时带上 id */
+  id?: string
   name: string
   /** 角色设定：agent 的核心 */
   prompt: string
@@ -77,6 +79,7 @@ function AgentDetail(props: {
   onInstall: () => void
   onUninstall: () => void
   onCall: (text: string) => Promise<{ ok: boolean; text?: string; error?: string }>
+  onEdit: () => void
 }): React.ReactElement {
   const { card } = props.entry
   const callable = props.entry.source === 'peer' && card.exposure.callable === true
@@ -149,6 +152,9 @@ function AgentDetail(props: {
         : null,
 
       React.createElement('div', { className: 'lim-agent-detail-actions' },
+        props.entry.source === 'mine'
+          ? React.createElement('button', { className: 'lim-send ghost', onClick: props.onEdit }, '编辑')
+          : null,
         props.entry.installed
           ? React.createElement('button', { className: 'lim-send ghost', disabled: props.busy, onClick: props.onUninstall }, '卸载')
           : React.createElement('button', { className: 'lim-send', disabled: props.busy, onClick: props.onInstall }, '安装到本机'),
@@ -165,22 +171,27 @@ function PublishForm(props: {
   selfAccount: string
   onClose: () => void
   loadBases: () => Promise<string[]>
+  /** 有值就是编辑模式：表单预填，标题与按钮文案随之改变 */
+  initial?: PublishInput
   onSubmit: (input: PublishInput) => void
 }): React.ReactElement {
-  const [name, setName] = React.useState('')
-  const [prompt, setPrompt] = React.useState('')
-  const [summary, setSummary] = React.useState('')
+  const editing = props.initial !== undefined
+  const [name, setName] = React.useState(props.initial?.name ?? '')
+  const [prompt, setPrompt] = React.useState(props.initial?.prompt ?? '')
+  const [summary, setSummary] = React.useState(props.initial?.summary ?? '')
   const [bases, setBases] = React.useState<string[]>([])
   const [base, setBase] = React.useState('')
   const [advanced, setAdvanced] = React.useState(false)
-  const [sampleIn, setSampleIn] = React.useState('')
-  const [sampleOut, setSampleOut] = React.useState('')
-  const [readScope, setReadScope] = React.useState('share/**')
-  const [useFsRead, setUseFsRead] = React.useState(false)
-  const [useBash, setUseBash] = React.useState(false)
-  const [bashAllow, setBashAllow] = React.useState('git log, rg ')
-  const [cloneable, setCloneable] = React.useState(true)
-  const [callable, setCallable] = React.useState(false)
+  const [sampleIn, setSampleIn] = React.useState(props.initial?.sampleIn ?? '')
+  const [sampleOut, setSampleOut] = React.useState(props.initial?.sampleOut ?? '')
+  const initialFs = props.initial?.tools.find((t) => t.name === 'fs.read')
+  const initialBash = props.initial?.tools.find((t) => t.name === 'bash')
+  const [readScope, setReadScope] = React.useState(initialFs?.scope ?? 'share/**')
+  const [useFsRead, setUseFsRead] = React.useState(initialFs !== undefined)
+  const [useBash, setUseBash] = React.useState(initialBash !== undefined)
+  const [bashAllow, setBashAllow] = React.useState((initialBash?.allow ?? ['git log', 'rg ']).join(', '))
+  const [cloneable, setCloneable] = React.useState(props.initial?.cloneable ?? true)
+  const [callable, setCallable] = React.useState(props.initial?.callable ?? false)
 
   React.useEffect(() => {
     let alive = true
@@ -203,6 +214,7 @@ function PublishForm(props: {
     if (useFsRead) tools.push({ name: 'fs.read', scope: readScope.trim() || 'share/**' })
     if (useBash) tools.push({ name: 'bash', allow: bashAllow.split(',').map((s) => s.trim()).filter(Boolean) })
     props.onSubmit({
+      ...(editing ? { id: props.initial!.id } : {}),
       name: name.trim(), prompt: prompt.trim(), summary: summary.trim(), base,
       tools, cloneable, callable, sampleIn: sampleIn.trim(), sampleOut: sampleOut.trim(),
     })
@@ -210,7 +222,7 @@ function PublishForm(props: {
 
   return React.createElement('div', { className: 'lim-modal', onClick: props.onClose },
     React.createElement('div', { className: 'lim-modal-box wide lim-agent-form', onClick: (e: any) => e.stopPropagation() },
-      React.createElement('div', { className: 'lim-setup-title' }, '发布一个 agent'),
+      React.createElement('div', { className: 'lim-setup-title' }, editing ? '编辑 agent' : '发布一个 agent'),
 
       React.createElement('div', { className: 'lim-field' },
         React.createElement('label', null, '名称'),
@@ -274,7 +286,7 @@ function PublishForm(props: {
         React.createElement('button', {
           className: 'lim-send', disabled: !canSubmit, onClick: submit,
           title: blockedBy === '' ? '发布' : blockedBy,
-        }, props.busy ? '发布中…' : '发布'),
+        }, props.busy ? '保存中…' : editing ? '保存' : '发布'),
         React.createElement('button', { className: 'lim-send ghost', onClick: props.onClose }, '取消'),
       ),
     ),
@@ -284,6 +296,7 @@ function PublishForm(props: {
 export function AgentPanel(props: AgentPanelProps): React.ReactElement {
   const [detail, setDetail] = React.useState<AgentEntry | null>(null)
   const [publishing, setPublishing] = React.useState(false)
+  const [editing, setEditing] = React.useState<PublishInput | null>(null)
   const mine = props.entries.filter((e) => e.source === 'mine')
   const peers = props.entries.filter((e) => e.source === 'peer')
 
@@ -339,16 +352,35 @@ export function AgentPanel(props: AgentPanelProps): React.ReactElement {
           onInstall: () => { props.onInstall(current); setDetail(null) },
           onUninstall: () => { props.onUninstall(current); setDetail(null) },
           onCall: (text: string) => props.onCall(current, text),
+          onEdit: () => {
+            const c = current.card
+            setEditing({
+              id: c.id,
+              name: c.name,
+              prompt: c.prompt,
+              // 摘要一直是「角色设定第一行」派生出来的：编辑时一律清空，让它跟着新 prompt 重新生成，
+              // 否则改完 prompt 列表里还是旧文案，看起来像没保存。想自定义就在表单里重新填。
+              summary: '',
+              base: '',
+              tools: c.requires.tools,
+              cloneable: c.exposure.cloneable,
+              callable: c.exposure.callable,
+              sampleIn: c.samples[0]?.in ?? '',
+              sampleOut: c.samples[0]?.out ?? '',
+            })
+            setDetail(null)
+          },
         })
       : null,
-    publishing
+    publishing || editing !== null
       ? React.createElement(PublishForm, {
           busy: props.busy,
+          ...(editing === null ? {} : { initial: editing }),
           error: props.error,
           selfAccount: props.selfAccount,
           loadBases: props.loadBases,
-          onClose: () => setPublishing(false),
-          onSubmit: (input) => { props.onPublish(input); setPublishing(false) },
+          onClose: () => { setPublishing(false); setEditing(null) },
+          onSubmit: (input) => { props.onPublish(input); setPublishing(false); setEditing(null) },
         })
       : null,
   )

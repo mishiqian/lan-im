@@ -207,6 +207,7 @@ function App(): React.ReactElement {
     setAgentError(null)
     void apiPost({
       action: 'agent.publish',
+      ...(input.id === undefined ? {} : { id: input.id }),
       name: input.name,
       prompt: input.prompt,
       summary: input.summary,
