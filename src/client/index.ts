@@ -242,12 +242,12 @@ function App(): React.ReactElement {
     try {
       const openRemote = async (): Promise<string | undefined> => {
         const opened = await apiPost({ action: 'agent.remote.open', account, agentId: entry.card.id })
-        if (opened?.ok !== true) {
-          setAgentError(String(opened?.error ?? '开会话失败'))
+        if (opened?.ok !== true || typeof opened?.sessionId !== 'string') {
+          setAgentError(String(opened?.error ?? '宿主没有返回会话（插件宿主可能还是旧版本，请 Cmd+Q 完全退出后重开）'))
           return undefined
         }
-        callSessions.current.set(key, String(opened.sessionId))
-        return String(opened.sessionId)
+        callSessions.current.set(key, opened.sessionId)
+        return opened.sessionId
       }
       let sessionId = callSessions.current.get(key) ?? (await openRemote())
       if (sessionId === undefined) return { ok: false, error: '开会话失败' }
@@ -280,12 +280,13 @@ function App(): React.ReactElement {
     const key = `${entry.card.author.accountId}/${entry.card.id}`
     const openLocal = async (): Promise<string | undefined> => {
       const opened = await apiPost({ action: 'agent.local.open', account: entry.card.author.accountId, id: entry.card.id })
-      if (opened?.ok !== true) {
-        setAgentError(String(opened?.error ?? '本机开会话失败'))
+      if (opened?.ok !== true || typeof opened?.sessionId !== 'string') {
+        // 宿主太旧时这个 action 不存在，可能回一份别的东西；宁可报清楚也别拿 undefined 去用
+        setAgentError(String(opened?.error ?? '宿主没有返回会话（插件宿主可能还是旧版本，请 Cmd+Q 完全退出后重开）'))
         return undefined
       }
-      localSessions.current.set(key, String(opened.sessionId))
-      return String(opened.sessionId)
+      localSessions.current.set(key, opened.sessionId)
+      return opened.sessionId
     }
     try {
       let sessionId = localSessions.current.get(key) ?? (await openLocal())

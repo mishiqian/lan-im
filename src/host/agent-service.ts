@@ -28,6 +28,8 @@ interface LiveSession {
 }
 
 export interface OpenInput {
+  /** 复活历史会话时沿用原 id，调用方不需要知道会话换过 */
+  remoteId?: string
   callerId: string
   agentKey: string
   preset?: string
@@ -93,7 +95,7 @@ export class AgentService {
       return { ok: false, error: '本机没有 agentLoop 服务，无法托管会话' }
     }
 
-    const remoteId = `s-${randomUUID()}`
+    const remoteId = input.remoteId ?? `s-${randomUUID()}`
     const dshSessionId = `lanim-${randomUUID()}`
     const root = join(this.runtime.storage.dataDir(), 'agent-share', input.agentKey.replace(/[^a-zA-Z0-9._-]/g, '_'), remoteId)
     try {
@@ -173,8 +175,13 @@ export class AgentService {
   }
 
   async send(remoteId: string, text: string): Promise<SendResult> {
-    const live = this.live.get(remoteId)
-    if (live === undefined) return { ok: false, error: '会话不存在或已关闭' }
+    let live = this.live.get(remoteId)
+    if (live === undefined) {
+      // 宿主重启或被断开后，旧 id 只在历史里；按记录把会话复活，调用方无感
+      const revived = await this.revive(remoteId)
+      if (revived === undefined) return { ok: false, error: '会话不存在或已关闭' }
+      live = revived
+    }
 
     const budgetCheck = live.budget.beginTurn()
     if (budgetCheck.decision === 'deny') return { ok: false, error: budgetCheck.reason }
@@ -242,6 +249,36 @@ export class AgentService {
         : {}),
     }
     return result
+  }
+
+  /** 用历史记录把会话复活到同一个 remoteId 上 */
+  private async revive(remoteId: string): Promise<LiveSession | undefined> {
+    const rec = this.history.find((r) => r.remoteId === remoteId)
+    if (rec === undefined) return undefined
+    const entry = this.runtime.agents.list().find((e) => `${e.card.author.accountId}/${e.card.id}` === rec.agentKey)
+    if (entry === undefined) return undefined
+    const card = entry.card
+    const base = {
+      remoteId,
+      callerId: rec.callerId,
+      agentKey: rec.agentKey,
+      prompt: card.prompt,
+      tools: card.requires.tools,
+      budget: card.requires.budget,
+    }
+    // 先按原 preset 试；preset 没注册就退回会话级 prompt
+    let opened = rec.preset === '' ? await this.open(base) : await this.open({ ...base, preset: rec.preset })
+    if (opened.ok !== true) opened = await this.open(base)
+    if (opened.ok !== true) return undefined
+    const live = this.live.get(remoteId)
+    if (live !== undefined) {
+      live.record.turns = rec.turns
+      live.record.tokens = rec.tokens
+      live.record.createdAt = rec.createdAt
+      void this.persist()
+    }
+    this.runtime.clients.logEvent(`会话已复活：${remoteId.slice(0, 8)}（${rec.agentKey} ← @${rec.callerId}）`)
+    return live
   }
 
   async close(remoteId: string): Promise<boolean> {

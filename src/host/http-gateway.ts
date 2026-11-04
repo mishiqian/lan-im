@@ -288,6 +288,13 @@ export class HttpGateway {
                 await this.runtime.sharedFileStore.remove(String(body.id ?? ''))
                 return json(res, 200, { ok: true, sharedFiles: this.runtime.sharedFileStore.list() })
               }
+              // 未识别的 action 必须明确报错：之前会直接回一份 state 快照，
+              // 旧客户端把 ok:true 当成"开会话成功"，拿着 sessionId=undefined 去发，
+              // 最后只看到「会话不存在或已关闭」——真正的错因被彻底藏起来
+              if (action !== 'state') {
+                json(res, 200, { ok: false, error: `unknown action: ${action}` })
+                return
+              }
             }
             json(res, 200, {
               ok: true,

@@ -94,6 +94,7 @@ export class HostRuntime {
     this.identityData = idResult.identity
     await this.trust.load()
     if (idResult.created) this.clients.logEvent(`已生成本机局域网身份 ${idResult.identity.keyId}`)
+    this.clients.logEvent(`lan-im v${PLUGIN_VERSION} 已加载`)
     await this.agents.load()
     await this.agentService.load()
     const config = await this.storage.readConfig()
