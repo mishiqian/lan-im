@@ -21,6 +21,8 @@ import { AgentInstaller } from './agent-install.ts'
 import type { AgentPackage } from '../protocol.ts'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 /**
  * 宿主运行时组合根：持有各业务模块与共享状态，并负责启动/停止编排。
@@ -30,6 +32,16 @@ import { join } from 'node:path'
  *                         ↘ [Storage / ClientHub / ChannelRegistry / MessageStore / Outbox / FileTransfer]
  * 业务模块间通过 Runtime 组合，不直接互相 import，避免功能耦合与循环依赖。
  */
+/** 宿主实际加载的插件版本：用来发现「界面新、宿主旧」这种半新半旧状态 */
+export const PLUGIN_VERSION: string = (() => {
+  try {
+    const file = fileURLToPath(new URL('../package.json', import.meta.url))
+    return String((JSON.parse(readFileSync(file, 'utf8')) as { version?: string }).version ?? '0.0.0')
+  } catch {
+    return '0.0.0'
+  }
+})()
+
 export class HostRuntime {
   readonly self: SelfInfo = { accountId: '', name: '', nodeId: '', ip: lanIp(), wsPort: 0, hasPsk: false, hasPassword: false }
   psk = ''
@@ -46,6 +58,8 @@ export class HostRuntime {
   readonly discovery = new Discovery(this)
   readonly messaging = new Messaging(this)
   readonly settings = new Settings(this)
+  readonly pluginVersion = PLUGIN_VERSION
+
   /** 宿主上下文：agentService 需要它来创建真实 session */
   ctx: any
   readonly agentService = new AgentService(this)

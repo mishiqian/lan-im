@@ -3,6 +3,8 @@
  * UI 与状态拆分：styles.ts / format.ts / components.ts，本文件只保留窗口状态编排；
  * 落位交给 Slot 系统（shell.overlay），不再自建 DOM 容器或往顶栏塞按钮。
  */
+declare const __LANIM_VERSION__: string
+
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { API_ROUTE, CHUNK_SIZE, type Channel, type ChannelKind, type ChatMessage, type FileInfo, type Peer, type SelfInfo, type SharedFile, type TargetType } from '../protocol.ts'
@@ -95,6 +97,12 @@ function App(): React.ReactElement {
           return
         }
         if (msg.t === 'snapshot') {
+          // 界面是新 bundle、宿主要是旧进程，会出现「装了却没反应」的怪象；
+          // 版本对不上就直说，别让人去猜
+          const hostVersion = String(msg.host?.version ?? '')
+          if (hostVersion !== '' && hostVersion !== '0.0.0' && hostVersion !== __LANIM_VERSION__) {
+            setAgentError(`宿主加载的是 v${hostVersion}，界面是 v${__LANIM_VERSION__}：请 Cmd+Q 完全退出 DeepSeek Harness 再打开`)
+          }
           setAgents(Array.isArray(msg.agents) ? (msg.agents as AgentEntry[]) : [])
           setSessions(Array.isArray(msg.sessions) ? (msg.sessions as RemoteSessionRecord[]) : [])
           setSelf(msg.self as SelfInfo)

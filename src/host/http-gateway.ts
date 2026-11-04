@@ -110,7 +110,7 @@ export class HttpGateway {
               const action = typeof body.action === 'string' ? body.action : 'state'
               if (action === 'info') {
                 // 客户端在 dsh-app:// 里拿不到 http origin，这里用请求的 Host 回推
-                return json(res, 200, { ok: true, host: req.headers.host ?? '', action })
+                return json(res, 200, { ok: true, host: req.headers.host ?? '', action, version: this.runtime.pluginVersion })
               }
               if (action === 'agent.list') {
                 return json(res, 200, { ok: true, agents: this.runtime.agents.list(), installed: this.runtime.agents.installedList() })
@@ -287,6 +287,7 @@ export class HttpGateway {
               agents: this.runtime.agents.list(),
               sessions: this.runtime.agentService.list().slice(-50),
               identity: { keyId: this.runtime.keyId, observed: this.runtime.identityObserved, pins: this.runtime.trust.list().length },
+              host: { version: this.runtime.pluginVersion },
               clients: this.runtime.clients.count,
               log: this.runtime.clients.log,
             })
