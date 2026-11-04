@@ -116,6 +116,17 @@ export class AgentService {
       const loopOptions: Record<string, unknown> = {}
       if (input.provider !== undefined && input.provider !== '') loopOptions.provider = input.provider
       if (input.model !== undefined && input.model !== '') loopOptions.model = input.model
+      if (loopOptions.provider === undefined || loopOptions.model === undefined) {
+        // 不指定就必须跟随宿主默认模型：否则 persona 里的 {{model}} 变量没有值，
+        // 整个 prompt 组装直接失败（"prompt variable {{model}} has no value"）
+        const defaults = typeof ctx.get === 'function' ? ctx.get('agentDefaultModel') : undefined
+        const selection = typeof defaults?.currentSelection === 'function' ? defaults.currentSelection() : undefined
+        if (selection?.provider !== undefined && selection?.model !== undefined) {
+          loopOptions.provider ??= selection.provider
+          loopOptions.model ??= selection.model
+          if (selection.reasoningEffort !== undefined) loopOptions.reasoningEffort = selection.reasoningEffort
+        }
+      }
       const authorPrompt = (input.prompt ?? '').trim()
       const handle = await loop.createAgent(ctx, {
         sessionId: dshSessionId,
