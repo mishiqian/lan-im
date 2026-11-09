@@ -1,0 +1,21 @@
+{
+  "name": "hlp-hello-signature",
+  "spec": "PROTOCOL.md §3.2 V1",
+  "inputs": {
+    "ed25519SeedHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "publicKeyBase64url": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+    "hubId": "hubA.example",
+    "nodeId": "6f1e2a3c-0000-4a00-9000-000000000001",
+    "clientNonce": "5f3c1a00",
+    "hubNonce": "9c1e77b2",
+    "ts": 1762670400200
+  },
+  "derived": {
+    "keyId": "KZDVVJ2UMNDUYAUF"
+  },
+  "expected": {
+    "transcriptUtf8": "lanim-hlp-v1\u0000hubA.example\u00006f1e2a3c-0000-4a00-9000-000000000001\u0000KZDVVJ2UMNDUYAUF\u00005f3c1a00\u00009c1e77b2\u00001762670400200",
+    "transcriptHex": "6c616e696d2d686c702d763100687562412e6578616d706c650036663165326133632d303030302d346130302d393030302d303030303030303030303031004b5a4456564a32554d4e4455594155460035663363316130300039633165373762320031373632363730343030323030",
+    "signatureBase64url": "14ajQV7JVS4wEKcwF0DSsIeW2Af_pf6u7J-CtMQBwiismjbU903cZgcaBdN9q0JS8yn_5uypqEs9HHik8NycAA"
+  }
+}

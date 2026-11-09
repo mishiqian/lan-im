@@ -1,0 +1,15 @@
+{
+  "name": "e2e-x25519-hkdf",
+  "spec": "PROTOCOL.md §4.3 V2",
+  "inputs": {
+    "aPrivateSeedHex": "1111111111111111111111111111111111111111111111111111111111111111",
+    "bPrivateSeedHex": "2222222222222222222222222222222222222222222222222222222222222222",
+    "aPublicKeyBase64url": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+    "bPublicKeyBase64url": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA"
+  },
+  "expected": {
+    "sharedSecretHex": "9e004098efc091d4ec2663b4e9f5cfd4d7064571690b4bea97ab146ab9f35056",
+    "salt": "lanim-e2e-v1|D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA|e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+    "keyHex": "124d454ea63ec6a4e426525a7c1d8ebfaa1221589d47e9e9602e79c6456b727a"
+  }
+}

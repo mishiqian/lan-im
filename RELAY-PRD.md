@@ -172,6 +172,10 @@ Hub 用 Node + TypeScript 写，单进程，零外部依赖（SQLite 用 better-
 
 ### 4.2 协议帧（新增）
 
+> 帧名与字节级细节以 [PROTOCOL.md](PROTOCOL.md) 为准，本节只给概览。
+> 协议分三层：HLP（链路）／LEP（信封，端到端加密）／LAP（应用负载）；
+> 机器可读向量在 [spec/](spec/README.md)。
+
 ```ts
 // 节点 → 枢纽
 { t: 'hub/hello', hubId, nodeId, keyId, account, nonce, ts, sig, invite? }
