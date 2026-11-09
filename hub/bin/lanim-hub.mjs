@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { X509Certificate, randomBytes } from 'node:crypto'
+import { hostname } from 'node:os'
 import { createHub } from '../src/server.mjs'
 
 const args = process.argv.slice(2)
@@ -21,7 +22,7 @@ const arg = (name, fallback) => {
 const port = Number(arg('port', '8787'))
 const host = arg('host', '0.0.0.0')
 const dataDir = arg('data', './hub-data')
-const hubId = arg('id', 'localhost')
+const hubId = arg('id', process.env.LANIM_HUB_ID ?? hostname() ?? 'localhost')
 
 mkdirSync(dataDir, { recursive: true })
 

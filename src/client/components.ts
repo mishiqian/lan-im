@@ -225,6 +225,18 @@ export function AccountSetup(props: { connected: boolean; onSetup: (username: st
   )
 }
 
+/** 枢纽可辨识名称：优先用枢纽自报的 id，localhost 这种占位就退回地址里的域名/IP */
+function hubLabel(hub: HubUiState): string {
+  const hubId = (hub.hubId ?? '').trim()
+  if (hubId !== '' && hubId !== 'localhost') return hubId
+  try {
+    const url = new URL(hub.url)
+    return url.host
+  } catch {
+    return hubId !== '' ? hubId : '枢纽'
+  }
+}
+
 export interface HubUiState {
   state: 'offline' | 'connecting' | 'online'
   url: string
@@ -328,7 +340,7 @@ export function ProfileCenter(props: {
         ),
         React.createElement('div', { className: 'lim-setup-hint' },
           props.hub.state === 'online'
-            ? `● 已连接${props.hub.hubId !== undefined ? ` · ${props.hub.hubId}` : ''}`
+            ? `● 已连接 · ${hubLabel(props.hub)}`
             : props.hub.state === 'connecting'
               ? '○ 正在连接…'
               : `○ 未连接${props.hub.lastError !== undefined ? ` · ${props.hub.lastError}` : ''}`),
