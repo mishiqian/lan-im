@@ -41,7 +41,8 @@
     "check": "tsc -p tsconfig.json --noEmit --pretty false && tsc -p tsconfig.client.json --noEmit --pretty false",
     "prepare": "npm run build",
     "prepublishOnly": "npm run check && npm run build",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:hub": "node --test --test-timeout=15000 hub/test/*.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

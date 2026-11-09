@@ -1,0 +1,14 @@
+{
+  "name": "@mishijian/lanim-hub",
+  "version": "0.1.0",
+  "description": "lan-im 通信枢纽：HLP 最小实现（认证 / 路由 / 离线队列），不解析信封内容",
+  "type": "module",
+  "main": "./src/server.mjs",
+  "bin": { "lanim-hub": "./bin/lanim-hub.mjs" },
+  "scripts": {
+    "start": "node ./bin/lanim-hub.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": { "ws": "^8.18.0" },
+  "engines": { "node": ">=20" }
+}
