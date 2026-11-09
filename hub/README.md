@@ -128,7 +128,7 @@ location /hlp {
 ## 限流与封禁
 
 ```bash
-lanim-hub --msg-per-sec 50 --bytes-per-sec 4194304   # 每节点配额（默认值同左）
+lanim-hub --msg-per-sec 50 --bytes-per-sec 8388608   # 每节点配额（默认值同左）
 ```
 
 - 按 **keyId** 计（不按连接，重连绕不过去）：令牌桶 + 1 秒字节窗口

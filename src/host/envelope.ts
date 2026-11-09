@@ -25,9 +25,39 @@ export interface EnvelopeHeader {
 
 const b64u = (buf: Buffer): string => buf.toString('base64url')
 
+/**
+ * 三类缓存：私钥 KeyObject、对端公钥 KeyObject、会话密钥。
+ * 没有它们时，每发一个 48KB 分片都要完整做一次 ECDH + HKDF + 两次 DER 解析，
+ * 实测吞吐只有 ~500KB/s；缓存后瓶颈才回到网络与限流。
+ */
+const privCache = new Map<string, ReturnType<typeof createPrivateKey>>()
+const pubCache = new Map<string, ReturnType<typeof createPublicKey>>()
+const keyCache = new Map<string, Buffer>()
+const CACHE_LIMIT = 512
+
+function cached<T>(map: Map<string, T>, key: string, make: () => T): T {
+  const hit = map.get(key)
+  if (hit !== undefined) return hit
+  const made = make()
+  if (map.size >= CACHE_LIMIT) {
+    const first = map.keys().next()
+    if (first.done !== true) map.delete(first.value)
+  }
+  map.set(key, made)
+  return made
+}
+
+function importEdPrivate(b64: string) {
+  return cached(privCache, b64, () => createPrivateKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'pkcs8' }))
+}
+
+function importEdPublic(pub: string) {
+  return cached(pubCache, pub, () => createPublicKey({ key: decodeAnyBase64(pub), format: 'der', type: 'spki' }))
+}
+
 /** Ed25519 私钥（pkcs8 base64） */
 function edPrivate(identity: IdentityFile) {
-  return createPrivateKey({ key: Buffer.from(identity.privateKey, 'base64'), format: 'der', type: 'pkcs8' })
+  return importEdPrivate(identity.privateKey)
 }
 
 function xPrivate(identity: IdentityFile) {
@@ -48,9 +78,13 @@ export function deriveSessionKey(identity: IdentityFile, peerKeyId: string, peer
   if (identity.x25519PrivateKey === undefined || identity.x25519PublicKey === undefined) {
     throw new Error('本机身份缺少 X25519 子钥')
   }
-  const shared = diffieHellman({ privateKey: xPrivate(identity), publicKey: xPublicFromB64u(peerX25519Pub) })
-  const salt = Buffer.from(KDF_SALT_PREFIX + [identity.keyId, peerKeyId].sort().join('|'), 'utf8')
-  return Buffer.from(hkdfSync('sha256', shared, salt, Buffer.from(KDF_INFO, 'utf8'), 32))
+  // 缓存键带上对端 prekey：对方换了子钥时自动失效
+  const cacheKey = `${identity.keyId}|${peerKeyId}|${peerX25519Pub}`
+  return cached(keyCache, cacheKey, () => {
+    const shared = diffieHellman({ privateKey: xPrivate(identity), publicKey: xPublicFromB64u(peerX25519Pub) })
+    const salt = Buffer.from(KDF_SALT_PREFIX + [identity.keyId, peerKeyId].sort().join('|'), 'utf8')
+    return Buffer.from(hkdfSync('sha256', shared, salt, Buffer.from(KDF_INFO, 'utf8'), 32))
+  })
 }
 
 export interface SealInput {
@@ -124,9 +158,7 @@ export function open(input: OpenInput): OpenResult {
   // 先验签，再解析 header —— 顺序不能反
   let signed = false
   try {
-    signed = verify(null, Buffer.concat([headerBytes, ciphertext, tag]), createPublicKey({
-      key: decodeAnyBase64(input.fromEd25519Pub), format: 'der', type: 'spki',
-    }), signature)
+    signed = verify(null, Buffer.concat([headerBytes, ciphertext, tag]), importEdPublic(input.fromEd25519Pub), signature)
   } catch {
     signed = false
   }

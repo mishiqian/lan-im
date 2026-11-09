@@ -52,6 +52,9 @@ export class HubClient {
   private timer: ReturnType<typeof setTimeout> | undefined
   private status: HubStatus
   private clientNonce = ''
+  /** ready 里下发的配额，供上层计算安全发送节奏 */
+  limits: { msgPerSec?: number; bytesPerSec?: number; frameBytes?: number } = {}
+  private pauseUntil = 0
 
   constructor(
     private readonly identity: IdentityFile,
@@ -226,6 +229,11 @@ export class HubClient {
 
     if (frame.t === 'ready') {
       this.attempts = 0
+      this.limits = {
+        ...(Number.isFinite(frame.limits?.msgPerSec) ? { msgPerSec: frame.limits.msgPerSec } : {}),
+        ...(Number.isFinite(frame.limits?.bytesPerSec) ? { bytesPerSec: frame.limits.bytesPerSec } : {}),
+        ...(Number.isFinite(frame.limits?.frameBytes) ? { frameBytes: frame.limits.frameBytes } : {}),
+      }
       this.setStatus({ state: 'online', hubId: String(frame.hubId ?? ''), since: Date.now(), lastError: undefined })
       this.send({ t: 'presence', v: HLP_VERSION, status: 'online' })
       this.handlers.onFrame?.(frame)
@@ -235,9 +243,17 @@ export class HubClient {
     if (frame.t === 'ping') { this.send({ t: 'pong', v: HLP_VERSION, ts: Date.now() }); return }
 
     if (frame.t === 'hub/error') {
+      if (frame.code === 1003 && Number.isFinite(frame.retryAfterMs)) {
+        this.pauseUntil = Math.max(this.pauseUntil, Date.now() + Number(frame.retryAfterMs))
+      }
       this.setStatus({ lastError: `${frame.code}: ${frame.message ?? ''}` })
     }
     this.handlers.onFrame?.(frame)
+  }
+
+  /** 距离上次限流惩罚结束还要等多久 */
+  pauseRemaining(): number {
+    return Math.max(0, this.pauseUntil - Date.now())
   }
 
   /** 发送一帧；未连接返回 false（调用方自行排队） */

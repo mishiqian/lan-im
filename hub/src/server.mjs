@@ -24,7 +24,7 @@ const DEFAULTS = {
   queueBytes: 64 * 1024 * 1024,
   queueTtlMs: 7 * 24 * 3600 * 1000,
   msgPerSec: 50,
-  bytesPerSec: 4 * 1024 * 1024,
+  bytesPerSec: 8 * 1024 * 1024,
   pingMs: 20_000,
   timeoutMs: 60_000,
 }
@@ -227,7 +227,7 @@ export function createHub(options = {}) {
       t: 'ready', v: PROTOCOL_VERSION, hubId: opts.hubId, version: PROTOCOL_VERSION,
       features: ['text', 'presence', 'queue', 'lookup'],
       serverTime: Date.now(),
-      limits: { frameBytes: opts.frameBytes, msgPerSec: opts.msgPerSec, queueBytes: opts.queueBytes },
+      limits: { frameBytes: opts.frameBytes, msgPerSec: opts.msgPerSec, bytesPerSec: opts.bytesPerSec, queueBytes: opts.queueBytes },
     })
     record(`+ ${session.account} (${session.keyId})`)
     // 目录预热：把现有节点告诉新节点，也把新节点告诉现有节点

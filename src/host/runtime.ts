@@ -233,12 +233,37 @@ export class HostRuntime {
     return result
   }
 
+  /**
+   * 文件分片的安全发送间隔：按枢纽下发的配额算，留 30% 余量。
+   * envelope 走 base64，长度约为原文的 1.37 倍。
+   */
+  hubChunkPaceMs(plainChunkBytes: number): number {
+    const limits = this.hubClient?.limits ?? {}
+    const msgPerSec = limits.msgPerSec ?? 50
+    const bytesPerSec = limits.bytesPerSec ?? 4 * 1024 * 1024
+    const envelopeBytes = Math.ceil(plainChunkBytes * 1.37) + 512
+    const byBytes = envelopeBytes / (bytesPerSec * 0.7) * 1000
+    const byCount = 1000 / (msgPerSec * 0.7)
+    return Math.ceil(Math.max(byBytes, byCount))
+  }
+
+  /** 命中限流惩罚时先等一等，避免继续丢帧 */
+  async hubWaitPause(): Promise<void> {
+    const remaining = this.hubClient?.pauseRemaining() ?? 0
+    if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
+  }
+
   /** 经枢纽发一条应用层消息（LEP 封装） */
   async sendViaHub(toAccount: string, kind: 'text' | 'channel' | 'receipt' | 'presence' | 'file-meta' | 'file-chunk', payload: unknown): Promise<boolean> {
     const client = this.hubClient
     const identity = this.identityData
     if (client === undefined || identity === undefined || client.getStatus().state !== 'online') return false
-    const peer = await this.resolvePeer(toAccount)
+    // 冷启动时目录可能还没热（lookup 在连上枢纽后才可用）：再等一次
+    let peer = await this.resolvePeer(toAccount)
+    if (peer === undefined || peer.prekey === '' || peer.pubkey === '') {
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      peer = await this.resolvePeer(toAccount)
+    }
     if (peer === undefined || peer.prekey === '' || peer.pubkey === '') {
       this.clients.logEvent(`找不到 @${toAccount} 的公钥，消息暂存本机`)
       return false

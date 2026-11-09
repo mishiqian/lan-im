@@ -14,7 +14,8 @@ export const DISCOVERY_PORT = 42123
 export const ANNOUNCE_INTERVAL_MS = 5000
 export const UDP_MAGIC = 'DSH-LAN-IM'
 /** 文件分片大小（字节），base64 后约 64KB */
-export const CHUNK_SIZE = 48 * 1024
+/** 分片大小：只影响发送方切片，接收方按 seq 拼接，改动不破坏兼容 */
+export const CHUNK_SIZE = 96 * 1024
 /** 文件大小上限（字节） */
 export const MAX_FILE_SIZE = 20 * 1024 * 1024
 /** 撤回限时（毫秒） */

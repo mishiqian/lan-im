@@ -95,12 +95,14 @@ export class FileTransfer {
         : [{ accountId: up.to }]
       for (const peer of targets) {
         void this.runtime.sendViaHub(peer.accountId, 'file-meta', meta)
+        // 按枢纽下发的配额算节奏（留 30% 余量），小文件不额外等待
+        const paceMs = totalChunks > 20 ? this.runtime.hubChunkPaceMs(CHUNK_SIZE) : 0   // ≈30 条/秒 × 96KB ≈ 2.9MB/s，压住枢纽 4MB/s 的字节上限
         for (let seq = 0; seq < totalChunks; seq++) {
           const slice = buf.subarray(seq * CHUNK_SIZE, (seq + 1) * CHUNK_SIZE)
           void this.runtime.sendViaHub(peer.accountId, 'file-chunk', { t: 'chunk', id, seq, data: slice.toString('base64') })
-          // 枢纽默认 50 条/秒：每 10 片停 300ms（≈33 条/秒），避免被限流丢片
-          if (seq % 10 === 9 && seq !== totalChunks - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 300))
+          if (paceMs > 0 && seq !== totalChunks - 1) {
+            await this.runtime.hubWaitPause()
+            await new Promise((resolve) => setTimeout(resolve, paceMs))
           }
         }
       }
