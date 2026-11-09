@@ -88,7 +88,15 @@ export class HostRuntime {
     this.self.nodeId = typeof config.nodeId === 'string' && config.nodeId !== '' ? config.nodeId : randomUUID()
     this.hubConfig = config.hub
     this.hubSeq = typeof config.hubSeq === 'number' ? config.hubSeq : 0
-    const acct = config.account
+    let acct = config.account
+    if ((acct === undefined || acct.username === '')) {
+      // 账号丢失时尝试用上一版配置恢复，避免"打开就是建号页"
+      const previous = await this.storage.readPreviousConfig()
+      if (previous.account !== undefined && previous.account.username !== '') {
+        acct = previous.account
+        this.clients.logEvent(`账号信息丢失，已从上一版配置恢复为 ${previous.account.username}`)
+      }
+    }
     if (acct && typeof acct.username === 'string' && acct.username !== '') {
       this.self.accountId = acct.username
       this.self.name = typeof acct.displayName === 'string' && acct.displayName !== '' ? acct.displayName : acct.username
@@ -427,7 +435,10 @@ export class HostRuntime {
 
   /** 当前配置视角账号；沿用旧文件里的 passwordHash/salt。 */
   private accountWithCredentials(previous?: Account): Account {
-    const account: Account = { username: this.self.accountId, displayName: this.self.name }
+    // 关键：self 为空时（例如进程刚起、还没读到配置）绝不能把已存的账号写成空
+    const username = this.self.accountId !== '' ? this.self.accountId : (previous?.username ?? '')
+    const displayName = this.self.name !== '' ? this.self.name : (previous?.displayName ?? username)
+    const account: Account = { username, displayName }
     if (previous?.passwordHash) {
       account.passwordHash = previous.passwordHash
       account.salt = previous.salt

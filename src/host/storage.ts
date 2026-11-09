@@ -128,7 +128,21 @@ export class Storage {
 
   async writeConfig(config: StoredConfig): Promise<void> {
     await mkdir(this.dataDir(), { recursive: true })
+    // 覆盖前留一版：账号被写空的极端情况下还能恢复
+    try {
+      const previous = await readFile(this.configPath(), 'utf8')
+      await writeFile(this.configPath() + '.prev', previous, 'utf8')
+    } catch { /* 首次写入没有旧文件 */ }
     await writeFile(this.configPath(), JSON.stringify(config, null, 2), 'utf8')
+  }
+
+  /** 读上一版配置（恢复用） */
+  async readPreviousConfig(): Promise<StoredConfig> {
+    try {
+      return JSON.parse(await readFile(this.configPath() + '.prev', 'utf8')) as StoredConfig
+    } catch {
+      return {}
+    }
   }
 
   async appendHistory(ts: number, line: string): Promise<void> {
