@@ -38,6 +38,7 @@ function App(): React.ReactElement {
   const [sharedFiles, setSharedFiles] = React.useState<SharedFile[]>([])
   const [logs, setLogs] = React.useState<string[]>([])
   const [connected, setConnected] = React.useState(false)
+  const [hub, setHub] = React.useState<{ state: 'offline' | 'connecting' | 'online'; url: string; hubId?: string; lastError?: string; managed?: boolean }>({ state: 'offline', url: '' })
   const [unread, setUnread] = React.useState<Record<string, number>>({})
   const [muted, setMuted] = React.useState<Set<string>>(new Set())
   const [active, setActive] = React.useState<string>('*')
@@ -80,7 +81,12 @@ function App(): React.ReactElement {
       ws.onmessage = (ev: MessageEvent) => {
         let msg: any
         try { msg = JSON.parse(String(ev.data)) } catch { return }
+        if (msg.t === 'hubStatus') {
+          if (msg.status !== undefined) setHub(msg.status)
+          return
+        }
         if (msg.t === 'snapshot') {
+          if (msg.hub !== undefined) setHub(msg.hub)
           setSelf(msg.self as SelfInfo)
           setPeers(Array.isArray(msg.peers) ? (msg.peers as Peer[]) : [])
           setChannels(Array.isArray(msg.channels) ? (msg.channels as Channel[]) : [])
@@ -242,6 +248,24 @@ function App(): React.ReactElement {
     ws.send(JSON.stringify({ t: 'search', keyword }))
   }
 
+  const configureHub = (url: string, invite: string): void => {
+    void apiPost({ action: 'hub.configure', url, invite }).then((r: any) => {
+      if (r?.hub !== undefined) setHub(r.hub)
+      if (r?.ok !== true) setError('枢纽配置失败')
+    }).catch((e: any) => setError('枢纽配置失败：' + String(e?.message ?? e)))
+  }
+
+  const startLocalHub = (): void => {
+    void apiPost({ action: 'hub.startLocal' }).then((r: any) => {
+      if (r?.ok !== true) setError('启动本机枢纽失败：' + String(r?.error ?? '未知原因'))
+      else if (typeof r.url === 'string') setHub((prev) => ({ ...prev, url: r.url, managed: true }))
+    }).catch((e: any) => setError('启动本机枢纽失败：' + String(e?.message ?? e)))
+  }
+
+  const stopLocalHub = (): void => {
+    void apiPost({ action: 'hub.stopLocal' }).then((r: any) => { if (r?.hub !== undefined) setHub(r.hub) }).catch(() => { /* 忽略 */ })
+  }
+
   const totalUnread = Object.values(unread).reduce<number>((a, b) => a + (b as number), 0)
 
   const layer = React.createElement(React.Fragment, null,
@@ -252,6 +276,10 @@ function App(): React.ReactElement {
       onSearch: onSearch, onRecall: recall, onEdit: edit, onSendFile: (f, to, toType) => { void sendFile(f, to, toType) },
       onSendSharedFile: (f, channelId) => { void sendSharedFile(f, channelId) },
       onSetupPassword: setPassword,
+      hub,
+      onConfigureHub: configureHub,
+      onStartLocalHub: startLocalHub,
+      onStopLocalHub: stopLocalHub,
       onToggleMute: toggleMute, onCreateChannel: createChannel, onRenameChannel: renameChannel, onDeleteChannel: deleteChannel,
       onJoinChannel: joinChannel, onLeaveChannel: leaveChannel, onInviteMember: inviteMember, onRemoveMember: removeMember,
       onRemoveSharedFile: removeSharedFile,

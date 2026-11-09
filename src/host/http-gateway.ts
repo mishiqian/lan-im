@@ -108,6 +108,13 @@ export class HttpGateway {
               if (action === 'hub.status') {
                 return json(res, 200, { ok: true, hub: this.runtime.hubStatus() })
               }
+              if (action === 'hub.startLocal') {
+                return json(res, 200, await this.runtime.startLocalHub())
+              }
+              if (action === 'hub.stopLocal') {
+                await this.runtime.stopLocalHub()
+                return json(res, 200, { ok: true, hub: this.runtime.hubStatus() })
+              }
               if (action === 'hub.configure') {
                 await this.runtime.configureHub(String(body.url ?? ''), typeof body.invite === 'string' ? body.invite : undefined)
                 return json(res, 200, { ok: true, hub: this.runtime.hubStatus() })

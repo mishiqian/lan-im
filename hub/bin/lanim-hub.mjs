@@ -27,8 +27,13 @@ mkdirSync(dataDir, { recursive: true })
 
 // 邀请码：首次生成并落盘，之后复用
 const inviteFile = join(dataDir, 'invites.json')
+const forcedInvite = arg('invite', '')
 let invites = []
-if (existsSync(inviteFile)) {
+if (forcedInvite !== '') {
+  // 显式指定时以它为准（调用方需要知道邀请码）
+  invites = [forcedInvite]
+  writeFileSync(inviteFile, JSON.stringify(invites, null, 2), { mode: 0o600 })
+} else if (existsSync(inviteFile)) {
   invites = JSON.parse(readFileSync(inviteFile, 'utf8'))
 } else {
   const code = randomBytes(6).toString('base64url').toUpperCase().match(/.{1,4}/g).slice(0, 3).join('-')
@@ -74,4 +79,9 @@ hub.listen(port, host).then(({ port: actual }) => {
   if (tls !== null) console.log('  证书      自签 TLS 已启用（生产建议前置反向代理）')
   else console.log('  传输      明文 ws（仅内网/本机；公网请用反向代理套 TLS）')
   console.log('')
+})
+
+process.on('unhandledRejection', (err) => {
+  console.error(`枢纽启动失败：${err?.message ?? err}`)
+  process.exit(1)
 })

@@ -225,7 +225,28 @@ export function AccountSetup(props: { connected: boolean; onSetup: (username: st
   )
 }
 
-export function ProfileCenter(props: { self: SelfInfo; peersCount: number; channelsCount: number; connected: boolean; onSetName: (name: string) => void; onSetupPsk: (psk: string) => void; onSetupPassword: (password: string) => void; onClose: () => void }): React.ReactElement {
+export interface HubUiState {
+  state: 'offline' | 'connecting' | 'online'
+  url: string
+  hubId?: string
+  lastError?: string
+  managed?: boolean
+}
+
+export function ProfileCenter(props: {
+  self: SelfInfo
+  peersCount: number
+  channelsCount: number
+  connected: boolean
+  onSetName: (name: string) => void
+  onSetupPsk: (psk: string) => void
+  onSetupPassword: (password: string) => void
+  hub: HubUiState
+  onConfigureHub: (url: string, invite: string) => void
+  onStartLocalHub: () => void
+  onStopLocalHub: () => void
+  onClose: () => void
+}): React.ReactElement {
   const self = props.self
   const [nameDraft, setNameDraft] = React.useState(self.name)
   const [pskDraft, setPskDraft] = React.useState('')
@@ -233,8 +254,12 @@ export function ProfileCenter(props: { self: SelfInfo; peersCount: number; chann
   const [passwordDraft, setPasswordDraft] = React.useState('')
   const [showPassword, setShowPassword] = React.useState(false)
   const [copied, setCopied] = React.useState<string | null>(null)
+  const [hubUrl, setHubUrl] = React.useState(props.hub.url)
+  const [hubInvite, setHubInvite] = React.useState('')
+  const [hubBusy, setHubBusy] = React.useState(false)
 
   React.useEffect(() => { setNameDraft(self.name) }, [self.name])
+  React.useEffect(() => { setHubUrl(props.hub.url) }, [props.hub.url])
 
   const copy = async (kind: 'account' | 'node', text: string): Promise<void> => {
     try {
@@ -279,6 +304,42 @@ export function ProfileCenter(props: { self: SelfInfo; peersCount: number; chann
         React.createElement('div', { className: 'lim-stat' }, React.createElement('b', null, String(props.peersCount)), React.createElement('span', null, '在线账号')),
         React.createElement('div', { className: 'lim-stat' }, React.createElement('b', null, String(props.channelsCount)), React.createElement('span', null, '已加入频道')),
         React.createElement('div', { className: 'lim-stat' }, React.createElement('b', null, self.wsPort > 0 ? `${self.ip}:${self.wsPort}` : self.ip), React.createElement('span', null, '本机地址')),
+      ),
+
+      React.createElement('div', { className: 'lim-field' },
+        React.createElement('label', null, '通信枢纽'),
+        React.createElement('div', { className: 'lim-row' },
+          React.createElement('input', {
+            className: 'lim-input', value: hubUrl, placeholder: 'ws://192.168.1.20:8787/hlp',
+            onChange: (e: any) => setHubUrl(e.target.value),
+          }),
+          React.createElement('button', {
+            className: 'lim-send', disabled: hubBusy,
+            onClick: () => { setHubBusy(true); props.onConfigureHub(hubUrl.trim(), hubInvite.trim()); window.setTimeout(() => setHubBusy(false), 1500) },
+          }, '连接'),
+        ),
+        React.createElement('div', { className: 'lim-row' },
+          React.createElement('input', {
+            className: 'lim-input', value: hubInvite, placeholder: '邀请码（首次连接需要）',
+            onChange: (e: any) => setHubInvite(e.target.value),
+          }),
+        ),
+        React.createElement('div', { className: 'lim-setup-hint' },
+          props.hub.state === 'online'
+            ? `● 已连接${props.hub.hubId !== undefined ? ` · ${props.hub.hubId}` : ''}`
+            : props.hub.state === 'connecting'
+              ? '○ 正在连接…'
+              : `○ 未连接${props.hub.lastError !== undefined ? ` · ${props.hub.lastError}` : ''}`),
+        React.createElement('div', { className: 'lim-row' },
+          React.createElement('button', {
+            className: 'lim-mini', disabled: hubBusy,
+            onClick: () => { setHubBusy(true); props.onStartLocalHub(); window.setTimeout(() => setHubBusy(false), 4000) },
+          }, props.hub.managed === true ? '重启本机枢纽' : '在本机启动枢纽'),
+          props.hub.managed === true
+            ? React.createElement('button', { className: 'lim-mini', onClick: props.onStopLocalHub }, '停止本机枢纽')
+            : null,
+        ),
+        React.createElement('div', { className: 'lim-setup-hint' }, '所有人（包括同一局域网）都经枢纽通信；内容端到端加密，枢纽只转发密文。'),
       ),
 
       React.createElement('div', { className: 'lim-field' },
@@ -361,6 +422,10 @@ export interface ChatWindowProps {
   onSetupAccount: (username: string, displayName: string, password: string) => void
   onSetupPsk: (psk: string) => void
   onSetupPassword: (password: string) => void
+  hub: HubUiState
+  onConfigureHub: (url: string, invite: string) => void
+  onStartLocalHub: () => void
+  onStopLocalHub: () => void
   onSearch: (keyword: string) => void
   onRecall: (id: string) => void
   onEdit: (id: string, body: string) => void
@@ -682,6 +747,10 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         onSetName: props.onSetName,
         onSetupPsk: props.onSetupPsk,
         onSetupPassword: props.onSetupPassword,
+        hub: props.hub,
+        onConfigureHub: props.onConfigureHub,
+        onStartLocalHub: props.onStartLocalHub,
+        onStopLocalHub: props.onStopLocalHub,
         onClose: () => setShowProfile(false),
       })
     : null

@@ -15,6 +15,7 @@ import { Settings } from './settings.ts'
 import { HttpGateway } from './http-gateway.ts'
 import { IdentityStore, TrustStore, handshakePayload, type IdentityFile } from './identity.ts'
 import { HubClient, type HubStatus } from './hub-client.ts'
+import { HubLauncher } from './hub-launcher.ts'
 import { open as openEnvelope, seal as sealEnvelope } from './envelope.ts'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -66,6 +67,8 @@ export class HostRuntime {
   private readonly hubLookups = new Map<string, (entry: any) => void>()
   /** LEP 发送序列号（持久化） */
   private hubSeq = 0
+  /** 一键起枢纽：托管的本地 hub 子进程 */
+  readonly hubLauncher = new HubLauncher()
 
   readonly identity = new IdentityStore(join(this.storage.dataDir(), 'identity'))
   readonly trust = new TrustStore(join(this.storage.dataDir(), 'trust.json'))
@@ -137,7 +140,28 @@ export class HostRuntime {
   }
 
   hubStatus(): HubStatus {
-    return this.hubClient?.getStatus() ?? { state: 'offline', url: this.hubConfig?.url ?? '' }
+    const base = this.hubClient?.getStatus() ?? { state: 'offline', url: this.hubConfig?.url ?? '' }
+    const managed = this.hubLauncher.status()
+    return { ...base, ...(managed.running ? { managed: true } : {}), ...(base.lastError === undefined && managed.error !== undefined ? { lastError: managed.error } : {}) } as HubStatus
+  }
+
+  /** 一键起枢纽：拉起本机 hub 子进程并自动连上 */
+  async startLocalHub(): Promise<{ ok: boolean; url?: string; invite?: string; error?: string }> {
+    const started = await this.hubLauncher.start(this.storage.dataDir(), this.self.ip)
+    if (started.running !== true || started.url === undefined) {
+      this.clients.logEvent(`启动本机枢纽失败：${started.error ?? '未知原因'}`)
+      return { ok: false, ...(started.error === undefined ? {} : { error: started.error }) }
+    }
+    await this.configureHub(started.url, started.invite)
+    this.clients.logEvent(`已在 ${started.url} 启动本机枢纽（邀请码 ${started.invite ?? '无'}）`)
+    return { ok: true, url: started.url, ...(started.invite === undefined ? {} : { invite: started.invite }) }
+  }
+
+  /** 停止托管的枢纽 */
+  async stopLocalHub(): Promise<void> {
+    this.hubLauncher.stop()
+    this.stopHub()
+    this.clients.logEvent('本机枢纽已停止')
   }
 
   /** 保存枢纽配置并立即重连 */
@@ -269,6 +293,7 @@ export class HostRuntime {
 
   stop(): void {
     this.stopped = true
+    this.hubLauncher.stop()
     this.peerNetwork.stop()
     this.discovery.stop()
     this.gateway.closeClients()
