@@ -249,7 +249,7 @@ export function createHub(options = {}) {
       return
     }
     session.hubNonce = randomBytes(4).toString('hex')
-    send(ws, { t: 'challenge', v: PROTOCOL_VERSION, hubNonce: session.hubNonce, ts: Date.now() })
+    send(ws, { t: 'challenge', v: PROTOCOL_VERSION, hubId: opts.hubId, hubNonce: session.hubNonce, ts: Date.now() })
   }
 
   const onConnection = (ws) => {

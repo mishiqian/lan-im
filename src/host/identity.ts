@@ -30,9 +30,13 @@ export function base32(bytes: Buffer): string {
   return out
 }
 
-/** 公钥 → keyId：sha256 的 base32 前 16 位（约 80 bit，局域网内够用） */
+/**
+ * 公钥 → keyId：对**原始 32 字节公钥**做 sha256，取 base32 前 16 位。
+ * 注意不是对 SPKI DER 做哈希——PROTOCOL.md §2 规定的是原始公钥字节。
+ */
 export function keyIdOf(publicKeyB64: string): string {
-  return base32(createHash('sha256').update(Buffer.from(publicKeyB64, 'base64')).digest()).slice(0, 16)
+  const der = Buffer.from(publicKeyB64.replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+  return base32(createHash('sha256').update(der.subarray(-32)).digest()).slice(0, 16)
 }
 
 export interface IdentityFile {
@@ -41,6 +45,14 @@ export interface IdentityFile {
   publicKey: string
   privateKey: string
   createdAt: number
+  /** 端到端加密用的 X25519 子钥（由 Ed25519 主钥签名发布，见 PROTOCOL.md §4） */
+  x25519PublicKey?: string
+  x25519PrivateKey?: string
+}
+
+/** prekey 签名转录串：prefix ␀ keyId ␀ prekey */
+export function prekeyPayload(keyId: string, prekey: string): string {
+  return `lanim-prekey-v1\u0000${keyId}\u0000${prekey}`
 }
 
 export interface Signable { nodeId: string; accountId: string; ts: number }
@@ -52,6 +64,17 @@ export function handshakePayload(input: Signable): string {
 
 /** 握手时间戳容忍窗口 */
 export const HANDSHAKE_SKEW_MS = 2 * 60 * 1000
+
+
+/** 宽松解码：既接受标准 base64 也接受 base64url（身份文件历史是 base64） */
+export function decodeAnyBase64(input: string): Buffer {
+  return Buffer.from(input.replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+}
+
+/** 规范要求传输一律 base64url */
+export function toBase64Url(input: string): string {
+  return decodeAnyBase64(input).toString('base64url')
+}
 
 const importPrivate = (b64: string) => createPrivateKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'pkcs8' })
 const importPublic = (b64: string) => createPublicKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'spki' })
@@ -70,9 +93,17 @@ export class IdentityStore {
       try {
         const parsed = JSON.parse(await readFile(this.path, 'utf8')) as IdentityFile
         if (parsed.version === 1 && typeof parsed.publicKey === 'string' && typeof parsed.privateKey === 'string') {
-          if (parsed.keyId !== keyIdOf(parsed.publicKey)) throw new Error('keyId 与公钥不一致')
+          const expected = keyIdOf(parsed.publicKey)
+          if (parsed.keyId !== expected) {
+            // 旧版本对 SPKI DER 做哈希，与协议规定（原始 32 字节）不同：就地迁移
+            parsed.keyId = expected
+            await writeFile(this.path, `${JSON.stringify(parsed, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
+          }
           this.data = parsed
-          return { identity: parsed, created: false }
+          if (typeof parsed.x25519PublicKey !== 'string' || typeof parsed.x25519PrivateKey !== 'string') {
+            await this.ensureX25519()
+          }
+          return { identity: this.data, created: false }
         }
       } catch {
         // 损坏就当没有：重新生成（旧文件会被覆盖，但不会导致进程起不来）
@@ -92,7 +123,27 @@ export class IdentityStore {
     await writeFile(this.path, `${JSON.stringify(identity, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
     try { await chmod(this.path, 0o600) } catch { /* Windows 忽略 */ }
     this.data = identity
-    return { identity, created: true }
+    await this.ensureX25519()
+    return { identity: this.data, created: true }
+  }
+
+  /** 补齐 X25519 子钥（老身份文件没有这个字段）；已有则不动 */
+  private async ensureX25519(): Promise<void> {
+    const data = this.data
+    if (data === undefined) return
+    if (typeof data.x25519PublicKey === 'string' && typeof data.x25519PrivateKey === 'string') return
+    const { publicKey, privateKey } = generateKeyPairSync('x25519')
+    data.x25519PublicKey = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('base64url')
+    data.x25519PrivateKey = privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64')
+    await writeFile(this.path, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
+    try { await chmod(this.path, 0o600) } catch { /* Windows 忽略 */ }
+  }
+
+  /** 发布用的 prekey 签名（Ed25519 主钥签署 X25519 公钥） */
+  prekeySignature(): string | undefined {
+    const data = this.data
+    if (data === undefined || data.x25519PublicKey === undefined) return undefined
+    return this.sign(prekeyPayload(data.keyId, data.x25519PublicKey))
   }
 
   get current(): IdentityFile | undefined {

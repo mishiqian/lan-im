@@ -105,7 +105,7 @@ RELAY-PRD 里只有几个帧名，那不是协议，只是草图。草图不能�
 **challenge（枢纽 → 节点）**
 
 ```json
-{ "t": "challenge", "v": 1, "hubNonce": "9c1e77b2", "ts": 1762670400123 }
+{ "t": "challenge", "v": 1, "hubId": "hubA.example", "hubNonce": "9c1e77b2", "ts": 1762670400123 }
 ```
 
 **auth（节点 → 枢纽）**：签名覆盖的字节**不是 JSON**，而是固定拼装：
@@ -119,6 +119,7 @@ RELAY-PRD 里只有几个帧名，那不是协议，只是草图。草图不能�
   "sig": "14ajQV7JVS4wEKcwF0DSsIeW2Af_pf6u7J-CtMQBwiismjbU903cZgcaBdN9q0JS8yn_5uypqEs9HHik8NycAA" }
 ```
 
+- `challenge.hubId` 是客户端构造转录串的唯一依据，**不得自行猜测**
 - `ts` 必须在枢纽时间的 ±120 s 内，否则 `1006`
 - `hubNonce` 一次性，用过即作废；同一 nonce 的第二次 `auth` 一律 `1006`
 
