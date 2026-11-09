@@ -121,3 +121,23 @@ test('字节窗口超限也会被拒', { timeout: 10000 }, async () => {
   ca.ws.close(); cb.ws.close()
   await hub.close()
 })
+
+test('管理接口需要令牌；管理页带令牌可打开', { timeout: 8000 }, async () => {
+  const hub = createHub({ hubId: 'test-hub', adminToken: 'secret-token' })
+  const { port } = await hub.listen(0, '127.0.0.1')
+
+  const noAuth = await fetch(`http://127.0.0.1:${port}/admin/nodes`)
+  assert.equal(noAuth.status, 401)
+  const pageNoAuth = await fetch(`http://127.0.0.1:${port}/admin`)
+  assert.equal(pageNoAuth.status, 401)
+
+  const withHeader = await fetch(`http://127.0.0.1:${port}/admin/nodes`, { headers: { 'x-admin-token': 'secret-token' } })
+  assert.equal(withHeader.status, 200)
+  const page = await fetch(`http://127.0.0.1:${port}/admin?token=secret-token`)
+  assert.equal(page.status, 200)
+  const html = await page.text()
+  assert.ok(html.includes('lan-im 枢纽管理'))
+  assert.ok(html.includes('/admin/blocked'))
+
+  await hub.close()
+})

@@ -8,6 +8,7 @@
  * - 其它一律不做：不解析信封、不存明文、不搜索
  */
 import { createServer as createHttpServer } from 'node:http'
+import { ADMIN_HTML } from './admin.mjs'
 import { createServer as createHttpsServer } from 'node:https'
 import { createHash, createPublicKey, randomBytes, verify } from 'node:crypto'
 import { WebSocketServer } from 'ws'
@@ -102,6 +103,18 @@ export function createHub(options = {}) {
     if (ws === undefined) return
     for (const item of list) send(ws, { t: 'relay', v: 1, to: keyId, env: item.env, from: item.from })
     queue.delete(keyId)
+  }
+
+  /** 管理接口鉴权：令牌来自启动参数；没配置则只允许本机访问 */
+  const adminAllowed = (req) => {
+    const token = opts.adminToken ?? ''
+    if (token === '') {
+      const remote = req.socket.remoteAddress ?? ''
+      return remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1'
+    }
+    const header = String(req.headers['x-admin-token'] ?? '')
+    const query = new URL(req.url ?? '/', 'http://x').searchParams.get('token') ?? ''
+    return header === token || query === token
   }
 
   const handleRelay = (ws, session, frame) => {
@@ -357,6 +370,18 @@ export function createHub(options = {}) {
       res.end(JSON.stringify({ ok: true, hubId: opts.hubId, nodes: nodes.size, queueBytes: queueBytes() }))
       return
     }
+    if ((req.url ?? '').startsWith('/admin')) {
+      if (!adminAllowed(req)) {
+        res.writeHead(401, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: '需要管理令牌' }))
+        return
+      }
+    }
+    if (req.url !== null && req.url.split('?')[0] === '/admin') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+      res.end(ADMIN_HTML)
+      return
+    }
     if (req.url === '/admin/blocked') {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify([...blocked]))
@@ -427,6 +452,7 @@ export function createHub(options = {}) {
     nodes,
     queue,
     blocked,
+    adminToken: opts.adminToken,
     invites,
     log,
     listen(port = 0, host = '127.0.0.1') {

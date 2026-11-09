@@ -71,10 +71,14 @@ if (tls !== null) {
 const blockedFile = join(dataDir, 'blocked.json')
 const blocked = existsSync(blockedFile) ? JSON.parse(readFileSync(blockedFile, 'utf8')) : []
 
+// 管理令牌：显式指定或自动生成，启动时打印
+const adminToken = arg('admin-token', randomBytes(16).toString('hex'))
+
 const hub = createHub({
   hubId,
   invites,
   blocked,
+  adminToken,
   msgPerSec: Number(arg('msg-per-sec', '50')),
   bytesPerSec: Number(arg('bytes-per-sec', String(4 * 1024 * 1024))),
   onBlockedChange: (list) => {
@@ -89,7 +93,7 @@ hub.listen(port, host).then(({ port: actual }) => {
   console.log('lan-im 枢纽已启动')
   console.log(`  地址      ${tls === null ? 'ws' : 'wss'}://${host === '0.0.0.0' ? '<本机IP>' : host}:${actual}`)
   console.log(`  健康检查  http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actual}/health`)
-  console.log(`  管理接口  http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actual}/admin/nodes`)
+  console.log(`  管理页    http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actual}/admin?token=${adminToken}`)
   console.log(`  邀请码    ${invites.join(', ')}`)
   console.log(`  数据目录  ${dataDir}`)
   console.log(`  封禁节点  ${blocked.length} 个（POST /admin/block 添加）`)
