@@ -342,11 +342,6 @@ export function ProfileCenter(props: { self: SelfInfo; peersCount: number; chann
 }
 
 export interface ChatWindowProps {
-  /** 当前视图：聊天 / Agent 集市 */
-  mode?: 'chat' | 'agents'
-  onModeChange?: (mode: 'chat' | 'agents') => void
-  /** Agent 模式的整块内容，由上层构造 */
-  agentView?: React.ReactNode
   self: SelfInfo | null
   peers: Peer[]
   channels: Channel[]
@@ -718,19 +713,12 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     { className: 'lim-window', style: { left: pos.x, top: pos.y, width: size.w, height: size.h }, ref: rootRef },
     React.createElement('div', { className: 'lim-header', onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp, onPointerCancel: onHeaderPointerUp },
       React.createElement(LanImMark, { size: 20, tile: '#0891B2' }),
-      props.mode !== undefined && props.onModeChange !== undefined
-        ? React.createElement('div', { className: 'lim-mode' },
-            React.createElement('button', { className: props.mode === 'chat' ? 'on' : '', 'aria-pressed': props.mode === 'chat', onClick: () => props.onModeChange?.('chat') }, '聊天'),
-            React.createElement('button', { className: props.mode === 'agents' ? 'on' : '', 'aria-pressed': props.mode === 'agents', onClick: () => props.onModeChange?.('agents') }, 'Agent'),
-          )
-        : React.createElement('span', { className: 'lim-title' }, '局域网聊天'),
+      React.createElement('span', { className: 'lim-title' }, '局域网聊天'),
       React.createElement('span', { className: 'lim-ver', title: '插件版本' }, __LANIM_VERSION__),
-      props.mode === 'agents'
-        ? null
-        : React.createElement('span', {
-            className: 'lim-count' + (connected ? '' : ' off'),
-            title: connected ? '已连接宿主' : '与宿主断开，正在重连',
-          }, connected ? `${accounts.length + 1} 在线` : '离线'),
+      React.createElement('span', {
+        className: 'lim-count' + (connected ? '' : ' off'),
+        title: connected ? '已连接宿主' : '与宿主断开，正在重连',
+      }, connected ? `${accounts.length + 1} 在线` : '离线'),
       React.createElement('div', { className: 'lim-actions' },
         React.createElement('button', {
           className: 'lim-iconbtn', title: '搜索消息', 'aria-label': '搜索消息', 'aria-pressed': showSearch,
@@ -752,8 +740,6 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     ),
     needSetup
       ? React.createElement(AccountSetup, { connected, onSetup: props.onSetupAccount })
-      : props.mode === 'agents' && props.agentView !== undefined
-      ? props.agentView
       : React.createElement(React.Fragment, null,
           showLog
             ? React.createElement('div', { className: 'lim-log' },

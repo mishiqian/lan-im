@@ -6,14 +6,7 @@ import { API_ROUTE, HISTORY_LIMIT, WS_PATH } from '../protocol.ts'
 import type { HostRuntime } from './runtime.ts'
 import { json, readBody } from './util.ts'
 import { ClientBridge } from './client-bridge.ts'
-import { buildAgentPackage, listBasePresets } from './agent-build.ts'
 
-/** 1.0.0 → 1.0.1；非 semver 时退回 1.0.0 */
-function nextPatch(version: string): string {
-  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(version.trim())
-  if (m === null) return '1.0.0'
-  return `${m[1]}.${m[2]}.${Number(m[3]) + 1}`
-}
 
 export interface WebServer {
   register(route: {
@@ -112,106 +105,6 @@ export class HttpGateway {
                 // 客户端在 dsh-app:// 里拿不到 http origin，这里用请求的 Host 回推
                 return json(res, 200, { ok: true, host: req.headers.host ?? '', action, version: this.runtime.pluginVersion })
               }
-              if (action === 'agent.list') {
-                return json(res, 200, { ok: true, agents: this.runtime.agents.list(), installed: this.runtime.agents.installedList() })
-              }
-              if (action === 'agent.bases') {
-                return json(res, 200, { ok: true, bases: await listBasePresets(this.runtime.presetsRoot) })
-              }
-              if (action === 'agent.publish') {
-                const editId = typeof body.id === 'string' && body.id !== '' ? body.id : undefined
-                const existing = editId === undefined ? undefined : this.runtime.agents.myAgents().find((c) => c.id === editId)
-                if (editId !== undefined && existing === undefined) {
-                  return json(res, 200, { ok: false, errors: [{ field: 'id', message: '要编辑的 agent 不存在' }] })
-                }
-                const built = await buildAgentPackage({
-                  presetsDir: this.runtime.presetsRoot,
-                  base: String(body.base ?? ''),
-                  accountId: this.runtime.self.accountId,
-                  ...(existing === undefined ? {} : { id: existing.id, version: nextPatch(existing.version) }),
-                  name: String(body.name ?? ''),
-                  prompt: String(body.prompt ?? ''),
-                  summary: typeof body.summary === 'string' ? body.summary : undefined,
-                  tools: Array.isArray(body.tools) ? body.tools : [],
-                  cloneable: body.cloneable !== false,
-                  callable: body.callable === true,
-                  sampleIn: typeof body.sampleIn === 'string' ? body.sampleIn : '',
-                  sampleOut: typeof body.sampleOut === 'string' ? body.sampleOut : '',
-                })
-                if (!built.ok || built.card === undefined || built.files === undefined) {
-                  return json(res, 200, { ok: false, errors: built.errors })
-                }
-                const result = await this.runtime.agents.publish(built.card, built.files)
-                return json(res, 200, result.ok ? { ok: true, card: result.card } : { ok: false, errors: result.errors })
-              }
-              if (action === 'agent.unpublish') {
-                return json(res, 200, { ok: await this.runtime.agents.unpublish(String(body.id ?? '')) })
-              }
-              if (action === 'agent.fetch') {
-                const pkg = await this.runtime.fetchAgentPackage(String(body.account ?? ''), String(body.id ?? ''))
-                return json(res, 200, pkg === undefined ? { ok: false, error: '对端不在线或没有这个包' } : { ok: true, pkg })
-              }
-              if (action === 'agent.install') {
-                const result = await this.runtime.agentInstaller.install(body.pkg)
-                return json(res, 200, result.ok
-                  ? { ok: true, record: result.record, restartRequired: result.restartRequired === true }
-                  : { ok: false, errors: result.errors })
-              }
-              if (action === 'agent.uninstall') {
-                const done = await this.runtime.agentInstaller.uninstall(String(body.account ?? ''), String(body.id ?? ''))
-                return json(res, 200, { ok: done })
-              }
-              if (action === 'agent.serve.open') {
-                const r = await this.runtime.agentService.open({
-                  callerId: String(body.caller ?? this.runtime.self.accountId),
-                  agentKey: String(body.agent ?? ''),
-                  preset: typeof body.preset === 'string' ? body.preset : undefined,
-                  provider: typeof body.provider === 'string' ? body.provider : undefined,
-                  model: typeof body.model === 'string' ? body.model : undefined,
-                  prompt: typeof body.prompt === 'string' ? body.prompt : undefined,
-                  tools: Array.isArray(body.tools) ? body.tools : [],
-                  budget: typeof body.budget === 'object' && body.budget !== null ? body.budget : undefined,
-                })
-                return json(res, 200, r)
-              }
-              if (action === 'agent.local.open') {
-                // 在本机用某个已安装（或自己发布）的 agent 开一个会话
-                const account = String(body.account ?? '')
-                const id = String(body.id ?? '')
-                const entry = this.runtime.agents.list().find(
-                  (e) => e.card.id === id && e.card.author.accountId === account && (e.source === 'mine' || e.installed),
-                )
-                if (entry === undefined) return json(res, 200, { ok: false, error: '没有找到这个 agent（可能还没安装）' })
-                const card = entry.card
-                const r = await this.runtime.openAgentSession(card, this.runtime.self.accountId)
-                return json(res, 200, r)
-              }
-              if (action === 'agent.serve.send') {
-                const r = await this.runtime.agentService.send(String(body.sessionId ?? ''), String(body.text ?? ''))
-                return json(res, 200, r)
-              }
-              if (action === 'agent.serve.close') {
-                return json(res, 200, { ok: await this.runtime.agentService.close(String(body.sessionId ?? '')) })
-              }
-              if (action === 'agent.remote.open') {
-                return json(res, 200, await this.runtime.remoteAgentOpen(String(body.account ?? ''), String(body.agentId ?? '')))
-              }
-              if (action === 'agent.remote.send') {
-                return json(res, 200, await this.runtime.remoteAgentSend(String(body.account ?? ''), String(body.sessionId ?? ''), String(body.text ?? '')))
-              }
-              if (action === 'agent.remote.close') {
-                const owner = String(body.account ?? '')
-                const peer = this.runtime.peerNetwork.peersSnapshot().find((p) => p.accountId === owner)
-                if (peer === undefined) {
-                  this.runtime.clients.logEvent(`关闭会话失败：@${owner} 不在线`)
-                  return json(res, 200, { ok: false, error: `@${owner} 不在线` })
-                }
-                this.runtime.peerNetwork.sendWire(peer.nodeId, { t: 'agentClose', sessionId: String(body.sessionId ?? '') })
-                return json(res, 200, { ok: true })
-              }
-              if (action === 'agent.serve.list') {
-                return json(res, 200, { ok: true, sessions: this.runtime.agentService.list() })
-              }
               if (action === 'log') {
                 this.runtime.clients.logEvent(String(body.message ?? '').slice(0, 300))
                 return json(res, 200, { ok: true })
@@ -303,8 +196,6 @@ export class HttpGateway {
               channels: this.runtime.channelRegistry.list(),
               messages: this.runtime.messageStore.messages.slice(-HISTORY_LIMIT),
               sharedFiles: this.runtime.sharedFileStore.list(),
-              agents: this.runtime.agents.list(),
-              sessions: this.runtime.agentService.list().slice(-50),
               identity: { keyId: this.runtime.keyId, observed: this.runtime.identityObserved, pins: this.runtime.trust.list().length },
               host: { version: this.runtime.pluginVersion },
               clients: this.runtime.clients.count,

@@ -26,9 +26,6 @@ export function apply(ctx: any): void {
   // 先认 profile：数据目录按 profile 隔离，避免同一台机器上 web / desktop 串账号
   setProfileKey(resolveProfileKey(ctx))
   const runtime = new HostRuntime()
-  runtime.attach(ctx)
-  const profileCtx = typeof ctx.get === 'function' ? ctx.get('profileContext') : undefined
-  if (profileCtx !== undefined && typeof profileCtx.dir === 'string') runtime.profileDir = profileCtx.dir
 
   ctx.effect(() => {
     runtime.stopped = false

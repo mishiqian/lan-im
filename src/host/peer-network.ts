@@ -4,7 +4,6 @@ import {
   type ChatMessage, type Peer, type PeerSeed, type PeerWireMessage,
 } from '../protocol.ts'
 import type { HostRuntime } from './runtime.ts'
-import { authorizeSessionControl } from './agent-acl.ts'
 import { pskIdFor } from './util.ts'
 
 /**
@@ -179,7 +178,6 @@ export class PeerNetwork {
           ...(id === undefined ? {} : { pubkey: id.pubkey, keyId: id.keyId, ts: id.ts, sig: id.sig }),
         }))
         this.flushConnection(peer, ws)
-        this.runtime.syncAgentsTo(nodeId)
         this.runtime.clients.logEvent(`已连接 ${peer.name} (${peer.ip}:${peer.wsPort})`)
       })
       ws.on('message', (data) => this.handlePeerMessage(nodeId, data))
@@ -262,8 +260,6 @@ export class PeerNetwork {
               files: this.runtime.sharedFileStore.listForPeer(peerAccount),
             }))
           } catch { /* 忽略 */ }
-          // 入站方向也要同步我的 agent 目录：只靠出站 open 会漏掉「对方连我」的情形
-          this.runtime.syncAgentsTo(nodeId)
           ws.on('message', (d) => this.handlePeerMessage(nodeId, d))
           ws.on('close', () => { if (this.connections.get(nodeId) === ws) this.connections.delete(nodeId) })
           ws.on('error', () => {})
@@ -387,55 +383,6 @@ export class PeerNetwork {
       if (this.runtime.sharedFileStore.merge(wire.files)) this.runtime.sharedFileStore.notifyClients()
     } else if (wire.t === 'fileAdd' || wire.t === 'fileRemove' || wire.t === 'fileFetch' || wire.t === 'fileData') {
       this.runtime.sharedFileStore.handleIncomingWire(wire)
-    } else if (wire.t === 'agentCard') {
-      if (this.runtime.agents.upsertRemote(wire.card)) {
-        this.runtime.clients.push({ t: 'agentsChanged', agents: this.runtime.agents.list() })
-      }
-    } else if (wire.t === 'agentCardsSync') {
-      let changed = false
-      for (const card of Array.isArray(wire.cards) ? wire.cards : []) {
-        if (this.runtime.agents.upsertRemote(card)) changed = true
-      }
-      if (changed) this.runtime.clients.push({ t: 'agentsChanged', agents: this.runtime.agents.list() })
-    } else if (wire.t === 'agentFetch') {
-      void (async () => {
-        const pkg = await this.runtime.agents.loadPackage(String(wire.id ?? ''))
-        const conn = this.connections.get(nodeId)
-        if (conn === undefined || conn.readyState !== WebSocket.OPEN) return
-        try {
-          conn.send(JSON.stringify(pkg === undefined
-            ? { t: 'agentPkg', reqId: wire.reqId, error: '没有这个 agent 的包' }
-            : { t: 'agentPkg', reqId: wire.reqId, pkg }))
-        } catch { /* 忽略 */ }
-      })()
-    } else if (wire.t === 'agentPkg') {
-      this.runtime.resolveAgentPackage(String(wire.reqId ?? ''), wire.pkg)
-    } else if (wire.t === 'agentOpen') {
-      const callerAccount = this.linkedAccounts.get(nodeId) ?? ''
-      const verified = this.peers.get(nodeId)?.trusted === true
-      void this.runtime.handleAgentOpen(callerAccount, String(wire.agentId ?? ''), verified).then((r) => {
-        const conn = this.connections.get(nodeId)
-        if (conn !== undefined && conn.readyState === WebSocket.OPEN) {
-          try { conn.send(JSON.stringify({ t: 'agentOpened', reqId: wire.reqId, ...r })) } catch { /* 忽略 */ }
-        }
-      })
-    } else if (wire.t === 'agentSend') {
-      const callerAccount = this.linkedAccounts.get(nodeId) ?? ''
-      const sessionId = String(wire.sessionId ?? '')
-      const owned = authorizeSessionControl(callerAccount, this.runtime.agentOwner(sessionId))
-      void (owned.ok ? this.runtime.agentService.send(sessionId, String(wire.text ?? '')) : Promise.resolve({ ok: false, error: owned.error })).then((r) => {
-        const conn = this.connections.get(nodeId)
-        if (conn !== undefined && conn.readyState === WebSocket.OPEN) {
-          try { conn.send(JSON.stringify({ t: 'agentSent', reqId: wire.reqId, ...r })) } catch { /* 忽略 */ }
-        }
-      })
-    } else if (wire.t === 'agentOpened' || wire.t === 'agentSent') {
-      this.runtime.resolveAgentReply(String(wire.reqId ?? ''), wire)
-    } else if (wire.t === 'agentClose') {
-      const callerAccount = this.linkedAccounts.get(nodeId) ?? ''
-      const sessionId = String(wire.sessionId ?? '')
-      const owned = authorizeSessionControl(callerAccount, this.runtime.agentOwner(sessionId))
-      if (owned.ok) void this.runtime.agentService.close(sessionId)
     }
   }
 

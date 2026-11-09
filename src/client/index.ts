@@ -11,8 +11,6 @@ import { API_ROUTE, CHUNK_SIZE, type Channel, type ChannelKind, type ChatMessage
 import { CSS } from './styles.ts'
 import { apiBase, currentApiHost, requestNotif, resolveApiHost, wsUrl } from './format.ts'
 import { ChatWindow, Launcher } from './components.ts'
-import { AgentPanel, type PublishInput } from './agent-panel.ts'
-import type { AgentEntry, RemoteSessionRecord } from '../protocol.ts'
 
 let wsFailureReports = 0
 async function reportWsFailure(): Promise<void> {
@@ -46,11 +44,6 @@ function App(): React.ReactElement {
   const [activeType, setActiveType] = React.useState<TargetType>('channel')
   const [searchResults, setSearchResults] = React.useState<ChatMessage[] | null>(null)
   const [error, setError] = React.useState<string | null>(null)
-  const [mode, setMode] = React.useState<'chat' | 'agents'>('chat')
-  const [agents, setAgents] = React.useState<AgentEntry[]>([])
-  const [sessions, setSessions] = React.useState<RemoteSessionRecord[]>([])
-  const [agentError, setAgentError] = React.useState<string | null>(null)
-  const [agentBusy, setAgentBusy] = React.useState(false)
 
   const wsRef = React.useRef<WebSocket | null>(null)
   const seenIds = React.useRef(new Set<string>())
@@ -83,28 +76,11 @@ function App(): React.ReactElement {
     const connect = (): void => {
       const ws = new WebSocket(wsUrl())
       wsRef.current = ws
-      ws.onopen = () => { setConnected(true); delay = 1000; void refreshAgents() }
+      ws.onopen = () => { setConnected(true); delay = 1000 }
       ws.onmessage = (ev: MessageEvent) => {
         let msg: any
         try { msg = JSON.parse(String(ev.data)) } catch { return }
-        if (msg.t === 'agentsChanged') {
-          setAgents(Array.isArray(msg.agents) ? (msg.agents as AgentEntry[]) : [])
-          setSessions(Array.isArray(msg.sessions) ? (msg.sessions as RemoteSessionRecord[]) : [])
-          return
-        }
-        if (msg.t === 'sessions') {
-          setSessions(Array.isArray(msg.sessions) ? (msg.sessions as RemoteSessionRecord[]) : [])
-          return
-        }
         if (msg.t === 'snapshot') {
-          // 界面是新 bundle、宿主要是旧进程，会出现「装了却没反应」的怪象；
-          // 版本对不上就直说，别让人去猜
-          const hostVersion = String(msg.host?.version ?? '')
-          if (hostVersion !== '' && hostVersion !== '0.0.0' && hostVersion !== __LANIM_VERSION__) {
-            setAgentError(`宿主加载的是 v${hostVersion}，界面是 v${__LANIM_VERSION__}：请 Cmd+Q 完全退出 DeepSeek Harness 再打开`)
-          }
-          setAgents(Array.isArray(msg.agents) ? (msg.agents as AgentEntry[]) : [])
-          setSessions(Array.isArray(msg.sessions) ? (msg.sessions as RemoteSessionRecord[]) : [])
           setSelf(msg.self as SelfInfo)
           setPeers(Array.isArray(msg.peers) ? (msg.peers as Peer[]) : [])
           setChannels(Array.isArray(msg.channels) ? (msg.channels as Channel[]) : [])
@@ -202,163 +178,6 @@ function App(): React.ReactElement {
     return await res.json()
   }
 
-  const refreshAgents = async (): Promise<void> => {
-    try {
-      const r = await apiPost({ action: 'agent.list' })
-      if (r?.ok === true && Array.isArray(r.agents)) setAgents(r.agents as AgentEntry[])
-    } catch { /* 忽略：下次快照会带 */ }
-  }
-
-  const publishAgent = (input: PublishInput): void => {
-    if ((selfRef.current?.accountId ?? '') === '') { setAgentError('先创建账号再发布'); return }
-    setAgentBusy(true)
-    setAgentError(null)
-    void apiPost({
-      action: 'agent.publish',
-      ...(input.id === undefined ? {} : { id: input.id }),
-      name: input.name,
-      prompt: input.prompt,
-      summary: input.summary,
-      base: input.base,
-      tools: input.tools,
-      cloneable: input.cloneable,
-      callable: input.callable,
-      sampleIn: input.sampleIn,
-      sampleOut: input.sampleOut,
-    })
-      .then((r: any) => {
-        if (r?.ok !== true) setAgentError('发布失败：' + ((r?.errors ?? []).map((e: any) => `${e.field} ${e.message}`).join('；') || '未知错误'))
-        else void refreshAgents()
-      })
-      .catch((e: any) => setAgentError('发布失败：' + String(e?.message ?? e)))
-      .finally(() => setAgentBusy(false))
-  }
-
-  // 每个「对方 agent」复用一个远端会话，避免每次调用都新开
-  const callSessions = React.useRef(new Map<string, string>())
-  const callAgent = async (entry: AgentEntry, text: string): Promise<{ ok: boolean; text?: string; error?: string }> => {
-    const account = entry.card.author.accountId
-    const key = `${account}/${entry.card.id}`
-    try {
-      const openRemote = async (): Promise<string | undefined> => {
-        const opened = await apiPost({ action: 'agent.remote.open', account, agentId: entry.card.id })
-        if (opened?.ok !== true || typeof opened?.sessionId !== 'string') {
-          setAgentError(String(opened?.error ?? '宿主没有返回会话（插件宿主可能还是旧版本，请 Cmd+Q 完全退出后重开）'))
-          return undefined
-        }
-        callSessions.current.set(key, opened.sessionId)
-        return opened.sessionId
-      }
-      let sessionId = callSessions.current.get(key) ?? (await openRemote())
-      if (sessionId === undefined) return { ok: false, error: '开会话失败' }
-      let sent = await apiPost({ action: 'agent.remote.send', account, sessionId, text })
-      if (sent?.ok !== true) {
-        callSessions.current.delete(key)
-        const reopened = await openRemote()
-        if (reopened === undefined) return { ok: false, error: String(sent?.error ?? '执行失败') }
-        sent = await apiPost({ action: 'agent.remote.send', account, sessionId: reopened, text })
-      }
-      if (sent?.ok === true) return { ok: true, text: String(sent.text ?? '') }
-      callSessions.current.delete(key)
-      return { ok: false, error: String(sent?.error ?? '执行失败') }
-    } catch (err: any) {
-      callSessions.current.delete(key)
-      return { ok: false, error: String(err?.message ?? err) }
-    }
-  }
-
-  const closeSession = (remoteId: string): void => {
-    // 作者侧断开：会话托管在本机，直接关本机的
-    void apiPost({ action: 'agent.serve.close', sessionId: remoteId })
-      .then(() => setSessions((prev) => prev.map((x) => (x.remoteId === remoteId ? { ...x, status: 'closed' as const } : x))))
-      .catch((err: any) => setError('断开失败：' + String(err?.message ?? err)))
-  }
-
-  // 本机试跑：装到自己机器上的 agent 用本机模型直接跑，不依赖对方在线
-  const localSessions = React.useRef(new Map<string, string>())
-  const localCall = async (entry: AgentEntry, text: string): Promise<{ ok: boolean; text?: string; error?: string }> => {
-    const key = `${entry.card.author.accountId}/${entry.card.id}`
-    const openLocal = async (): Promise<string | undefined> => {
-      const opened = await apiPost({ action: 'agent.local.open', account: entry.card.author.accountId, id: entry.card.id })
-      if (opened?.ok !== true || typeof opened?.sessionId !== 'string') {
-        // 宿主太旧时这个 action 不存在，可能回一份别的东西；宁可报清楚也别拿 undefined 去用
-        setAgentError(String(opened?.error ?? '宿主没有返回会话（插件宿主可能还是旧版本，请 Cmd+Q 完全退出后重开）'))
-        return undefined
-      }
-      localSessions.current.set(key, opened.sessionId)
-      return opened.sessionId
-    }
-    try {
-      let sessionId = localSessions.current.get(key) ?? (await openLocal())
-      if (sessionId === undefined) return { ok: false, error: '本机开会话失败' }
-      let sent = await apiPost({ action: 'agent.serve.send', sessionId, text })
-      if (sent?.ok !== true) {
-        // 宿主重启或会话被断开后，缓存里的 id 就失效了：自动重开一次再发
-        localSessions.current.delete(key)
-        const reopened = await openLocal()
-        if (reopened === undefined) return { ok: false, error: String(sent?.error ?? '执行失败') }
-        sessionId = reopened
-        sent = await apiPost({ action: 'agent.serve.send', sessionId, text })
-      }
-      if (sent?.ok === true) return { ok: true, text: String(sent.text ?? '') }
-      localSessions.current.delete(key)
-      return { ok: false, error: String(sent?.error ?? '执行失败') }
-    } catch (err: any) {
-      localSessions.current.delete(key)
-      return { ok: false, error: String(err?.message ?? err) }
-    }
-  }
-
-  const loadBases = async (): Promise<string[]> => {
-    try {
-      let r: any
-      try {
-        r = await apiPost({ action: 'agent.bases' })
-      } catch (first: any) {
-        // 桌面端首次可能还没拿到宿主地址：重解析一次再试
-        await resolveApiHost()
-        try {
-          r = await apiPost({ action: 'agent.bases' })
-        } catch (second: any) {
-          setAgentError(`读不到本机 preset（${apiBase()}）：${String(second?.message ?? second)}`)
-          return []
-        }
-        void first
-      }
-      if (r?.ok !== true) {
-        setAgentError('读不到本机 preset：' + String(r?.error ?? '未知原因'))
-        return []
-      }
-      const names = Array.isArray(r.bases) ? r.bases.map((b: any) => String(b.name)) : []
-      if (names.length === 0) setAgentError('本机 ~/.dsh/.agent-presets 下没有可用的 preset（需要有 agent.cordis.yml）')
-      return names
-    } catch (err: any) {
-      setAgentError('读不到本机 preset：' + String(err?.message ?? err))
-      return []
-    }
-  }
-
-  const installAgent = (entry: AgentEntry): void => {
-    setAgentBusy(true)
-    setAgentError(null)
-    void (async () => {
-      const fetched = await apiPost({ action: 'agent.fetch', account: entry.card.author.accountId, id: entry.card.id })
-      if (fetched?.ok !== true) { setAgentError('拉取失败：' + String(fetched?.error ?? '对端不在线')); return }
-      const done = await apiPost({ action: 'agent.install', pkg: fetched.pkg })
-      if (done?.ok !== true) setAgentError('安装失败：' + ((done?.errors ?? []).map((e: any) => e.message).join('；') || '未知错误'))
-      else if (done?.restartRequired === true) setAgentError('已安装：详情页可以直接「试跑」，重启 dsh 后也会出现在 preset 列表里供新会话选择。')
-      await refreshAgents()
-    })().catch((e: any) => setAgentError('安装失败：' + String(e?.message ?? e))).finally(() => setAgentBusy(false))
-  }
-
-  const uninstallAgent = (entry: AgentEntry): void => {
-    setAgentBusy(true)
-    void apiPost({ action: 'agent.uninstall', account: entry.card.author.accountId, id: entry.card.id })
-      .then((r: any) => { if (r?.ok !== true) setAgentError('卸载失败'); return refreshAgents() })
-      .catch((e: any) => setAgentError('卸载失败：' + String(e?.message ?? e)))
-      .finally(() => setAgentBusy(false))
-  }
-
   const setupAccount = (username: string, displayName: string, password: string): void => {
     requestNotif()
     const ws = wsRef.current
@@ -428,24 +247,6 @@ function App(): React.ReactElement {
   const layer = React.createElement(React.Fragment, null,
     React.createElement('style', null, CSS),
     open ? React.createElement(ChatWindow, {
-      mode,
-      onModeChange: setMode,
-      agentView: React.createElement(AgentPanel, {
-        entries: agents,
-        loadBases,
-        sessions,
-        onCloseSession: closeSession,
-        error: agentError,
-        onClearError: () => setAgentError(null),
-        selfAccount: self?.accountId ?? '',
-        busy: agentBusy,
-        onPublish: publishAgent,
-        onInstall: installAgent,
-        onUninstall: uninstallAgent,
-        onCall: callAgent,
-        onLocalCall: localCall,
-        onClose: () => setMode('chat'),
-      }),
       self, peers, channels, messages, files, sharedFiles, logs, connected, unread, muted, active, activeType, searchResults,
       onSelect: selectConv, onSend: send, onSetName: setName, onSetupAccount: setupAccount, onSetupPsk: setupPsk,
       onSearch: onSearch, onRecall: recall, onEdit: edit, onSendFile: (f, to, toType) => { void sendFile(f, to, toType) },

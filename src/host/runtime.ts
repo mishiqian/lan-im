@@ -13,12 +13,7 @@ import { FileTransfer } from './file-transfer.ts'
 import { SharedFileStore } from './shared-file-store.ts'
 import { Settings } from './settings.ts'
 import { HttpGateway } from './http-gateway.ts'
-import { AgentRegistry } from './agent-registry.ts'
 import { IdentityStore, TrustStore, handshakePayload, type IdentityFile } from './identity.ts'
-import { AgentService } from './agent-service.ts'
-import { authorizeCall } from './agent-acl.ts'
-import { AgentInstaller } from './agent-install.ts'
-import type { AgentPackage } from '../protocol.ts'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
@@ -60,32 +55,11 @@ export class HostRuntime {
   readonly settings = new Settings(this)
   readonly pluginVersion = PLUGIN_VERSION
 
-  /** 宿主上下文：agentService 需要它来创建真实 session */
-  ctx: any
-  readonly agentService = new AgentService(this)
   readonly identity = new IdentityStore(join(this.storage.dataDir(), 'identity'))
   readonly trust = new TrustStore(join(this.storage.dataDir(), 'trust.json'))
   private identityData: IdentityFile | undefined
   /** 诊断：本次进程里观察过多少次对端身份 */
   identityObserved = 0
-  readonly agents = new AgentRegistry({
-    dir: join(this.storage.dataDir(), 'agents'),
-    selfAccount: () => this.self.accountId,
-    onPublish: (card) => {
-      this.peerNetwork.broadcastWire({ t: 'agentCard', card })
-      this.clients.push({ t: 'agentsChanged', agents: this.agents.list() })
-    },
-  })
-  /** DSH 的 preset 根目录：既是安装目标，也是「基础 preset」的来源 */
-  readonly presetsRoot = join(process.env.DSH_HOME && process.env.DSH_HOME !== '' ? process.env.DSH_HOME : join(homedir(), '.dsh'), '.agent-presets')
-  /** 当前 profile 目录（由 profileContext 注入，供写 preset 行） */
-  profileDir = ''
-  readonly agentInstaller = new AgentInstaller({
-    presetsDir: this.presetsRoot,
-    registry: this.agents,
-    patchFile: () => (this.profileDir === '' ? undefined : join(this.profileDir, 'cordis.patch.yml')),
-  })
-  private readonly agentFetches = new Map<string, (pkg: AgentPackage | undefined) => void>()
   readonly gateway = new HttpGateway(this)
 
   async start(): Promise<void> {
@@ -95,8 +69,6 @@ export class HostRuntime {
     await this.trust.load()
     if (idResult.created) this.clients.logEvent(`已生成本机局域网身份 ${idResult.identity.keyId}`)
     this.clients.logEvent(`lan-im v${PLUGIN_VERSION} 已加载`)
-    await this.agents.load()
-    await this.agentService.load()
     const config = await this.storage.readConfig()
     await this.storage.ensureDataDir()
     this.clients.logEvent(`数据目录：${this.storage.dataDir()}`)
@@ -178,131 +150,6 @@ export class HostRuntime {
     }
     this.peerNetwork.applyIdentity(accountId, keyId, true)
     return true
-  }
-
-  /** 远端 agent 调用的待回包请求（reqId → resolve） */
-  private readonly agentReplies = new Map<string, (payload: any) => void>()
-
-  /** 发一个 agent 调用帧并等回包；超时返回 undefined */
-  private async agentCall(nodeId: string, frame: any, timeoutMs = 30_000): Promise<any> {
-    const reqId = String(frame.reqId)
-    return await new Promise<any>((resolve) => {
-      const timer = setTimeout(() => { this.agentReplies.delete(reqId); resolve(undefined) }, timeoutMs)
-      this.agentReplies.set(reqId, (payload) => { clearTimeout(timer); this.agentReplies.delete(reqId); resolve(payload) })
-      const sent = this.peerNetwork.sendWire(nodeId, frame)
-      if (!sent) this.clients.logEvent(`agent 调用排队（对端未连上）：${frame.t}`)
-    })
-  }
-
-  /** 收到回包 */
-  resolveAgentReply(reqId: string, payload: unknown): void {
-    const done = this.agentReplies.get(reqId)
-    if (done !== undefined) done(payload)
-  }
-
-  /** 调用方：请对端开一个会话 */
-  async remoteAgentOpen(account: string, agentId: string): Promise<{ ok: boolean; sessionId?: string; error?: string }> {
-    const peer = this.peerNetwork.peersSnapshot().find((p) => p.accountId === account)
-    if (peer === undefined) return { ok: false, error: `@${account} 不在线` }
-    if (peer.trusted !== true) return { ok: false, error: `@${account} 的身份未通过验证，拒绝调用` }
-    const reply = await this.agentCall(peer.nodeId, { t: 'agentOpen', reqId: randomUUID(), agentId, caller: this.self.accountId })
-    if (reply === undefined) return { ok: false, error: '对端没有响应（可能离线或未开放调用）' }
-    return { ok: reply.ok === true, ...(reply.sessionId ? { sessionId: reply.sessionId } : {}), ...(reply.error ? { error: reply.error } : {}) }
-  }
-
-  /** 调用方：发一轮 */
-  async remoteAgentSend(account: string, sessionId: string, text: string): Promise<{ ok: boolean; text?: string; error?: string }> {
-    const peer = this.peerNetwork.peersSnapshot().find((p) => p.accountId === account)
-    if (peer === undefined) return { ok: false, error: `@${account} 不在线` }
-    const reply = await this.agentCall(peer.nodeId, { t: 'agentSend', reqId: randomUUID(), sessionId, text }, 180_000)
-    if (reply === undefined) return { ok: false, error: '对端没有响应（或这一轮超时）' }
-    return { ok: reply.ok === true, ...(reply.text ? { text: reply.text } : {}), ...(reply.error ? { error: reply.error } : {}) }
-  }
-
-  /** 作者侧：处理 open —— 校验卡片是否开放调用，再用 preset 或 prompt 落会话 */
-  async handleAgentOpen(fromAccount: string, agentId: string, verified: boolean): Promise<{ ok: boolean; sessionId?: string; error?: string }> {
-    const card = this.agents.myAgents().find((c) => c.id === agentId)
-    const allowed = authorizeCall(
-      { accountId: fromAccount, verified },
-      card === undefined ? undefined : { id: card.id, authorAccountId: card.author.accountId, callable: card.exposure.callable },
-    )
-    if (!allowed.ok) {
-      this.clients.logEvent(`拒绝 ${fromAccount === '' ? '未识别连接' : '@' + fromAccount} 的调用：${allowed.error}`)
-      return { ok: false, error: allowed.error }
-    }
-    if (card === undefined) return { ok: false, error: '没有这个 agent' }
-
-    const preset = `${this.self.accountId}-${card.id}`
-    const common = {
-      callerId: fromAccount,
-      agentKey: `${card.author.accountId}/${card.id}`,
-      prompt: card.prompt,
-      tools: card.requires.tools,
-      budget: card.requires.budget,
-    }
-    return await this.openAgentSession(card, fromAccount)
-  }
-
-  /**
-   * 用某个 agent 开一个托管会话：优先用它安装出来的 preset（那样工具/配置最全），
-   * preset 还没注册（要重启才生效）时退回「会话级 prompt」，不让使用被部署细节卡住。
-   */
-  async openAgentSession(card: { id: string; author: { accountId: string }; prompt: string; requires: { tools: any[]; budget: any } }, callerId: string) {
-    const preset = `${card.author.accountId}-${card.id}`
-    const common = {
-      callerId,
-      agentKey: `${card.author.accountId}/${card.id}`,
-      prompt: card.prompt,
-      tools: card.requires.tools,
-      budget: card.requires.budget,
-    }
-    const withPreset = await this.agentService.open({ ...common, preset })
-    if (withPreset.ok) return withPreset
-    this.clients.logEvent(`用 preset 开会话失败（${withPreset.error}），退回会话级 prompt`)
-    return await this.agentService.open(common)
-  }
-
-  /** 这个 agent 的 owner 是谁（用于把 sessionId 路由回正确的 peer） */
-  agentOwner(sessionId: string): string | undefined {
-    return this.agentService.get(sessionId)?.callerId
-  }
-
-  /** 向某个 peer 拉取 agent 包；超时返回 undefined，不抛错。 */
-  async fetchAgentPackage(account: string, id: string, timeoutMs = 15000): Promise<AgentPackage | undefined> {
-    const peer = this.peerNetwork.peersSnapshot().find((p) => p.accountId === account)
-    if (peer === undefined) return undefined
-    const reqId = randomUUID()
-    return await new Promise<AgentPackage | undefined>((resolve) => {
-      const timer = setTimeout(() => {
-        this.agentFetches.delete(reqId)
-        resolve(undefined)
-      }, timeoutMs)
-      this.agentFetches.set(reqId, (pkg) => {
-        clearTimeout(timer)
-        this.agentFetches.delete(reqId)
-        resolve(pkg)
-      })
-      const sent = this.peerNetwork.sendWire(peer.nodeId, { t: 'agentFetch', reqId, accountId: this.self.accountId, id })
-      if (!sent) this.clients.logEvent(`agent 包请求排队：${account}/${id}`)
-    })
-  }
-
-  /** peer 回包 */
-  resolveAgentPackage(reqId: string, pkg: AgentPackage | undefined): void {
-    const done = this.agentFetches.get(reqId)
-    if (done !== undefined) done(pkg)
-  }
-
-  /** 连上某个 peer 后，把我的目录同步过去 */
-  syncAgentsTo(nodeId: string): void {
-    const cards = this.agents.myAgents()
-    if (cards.length === 0) return
-    this.peerNetwork.sendWire(nodeId, { t: 'agentCardsSync', cards })
-  }
-
-  /** 由插件入口注入宿主 ctx（agent/session 服务都在上面） */
-  attach(ctx: any): void {
-    this.ctx = ctx
   }
 
   /** 当前配置视角账号；沿用旧文件里的 passwordHash/salt。 */

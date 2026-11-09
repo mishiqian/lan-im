@@ -116,76 +116,6 @@ export interface FileInfo {
 }
 
 
-/** ---------- Agent 集市（M0） ---------- */
-
-/** 能力包络里允许声明的工具 */
-export const AGENT_TOOLS = ['fs.read', 'fs.write', 'bash', 'web.fetch'] as const
-export type AgentToolName = (typeof AGENT_TOOLS)[number]
-export const AGENT_PERMISSIONS = ['read-only', 'workspace-write', 'danger-full-access'] as const
-export type AgentPermission = (typeof AGENT_PERMISSIONS)[number]
-
-export interface AgentToolGrant {
-  name: AgentToolName
-  scope?: string
-  allow?: string[]
-  deny?: string[]
-}
-
-export interface AgentBudget { turns?: number; tokens?: number; seconds?: number }
-export interface AgentSample { in: string; out: string; note?: string }
-
-export interface AgentCard {
-  schema: number
-  id: string
-  version: string
-  name: string
-  summary: string
-  /** 角色设定正文——agent 的核心，装到对方机器上就是这个 prompt 在生效 */
-  prompt: string
-  author: { accountId: string; keyId?: string }
-  input: { type: 'text' | 'file' | 'any'; hint?: string }
-  output: { type: 'markdown' | 'text' | 'json' | 'file' }
-  requires: { model?: string; permissions?: AgentPermission; tools: AgentToolGrant[]; budget: AgentBudget }
-  exposure: { cloneable: boolean; callable: boolean; acl?: 'lan' | 'accounts'; accounts?: string[] }
-  samples: AgentSample[]
-  integrity?: { sha256?: string; keyId?: string; sig?: string }
-}
-
-export interface AgentPackageFile { path: string; encoding: 'utf8' | 'base64'; data: string }
-
-export interface AgentPackage {
-  format: string
-  schema: number
-  card: AgentCard
-  files: AgentPackageFile[]
-  integrity: { card: string; files: string; pkg: string }
-}
-
-/** 目录条目：卡片 + 来源 */
-export interface AgentEntry {
-  card: AgentCard
-  /** mine = 我发布的；peer = 别人发布的 */
-  source: 'mine' | 'peer'
-  /** 我是否已安装（仅 peer 有意义） */
-  installed: boolean
-  /** 已安装版本（用于提示升级） */
-  installedVersion?: string
-}
-
-/** 一次远端托管会话的落盘记录（作者侧可见） */
-export interface RemoteSessionRecord {
-  remoteId: string
-  dshSessionId: string
-  agentKey: string
-  preset: string
-  callerId: string
-  createdAt: number
-  lastActive: number
-  status: 'active' | 'suspended' | 'closed'
-  turns: number
-  tokens: number
-}
-
 /** 节点间 WebSocket 消息帧 */
 export type PeerWireMessage =
   | {
@@ -212,15 +142,6 @@ export type PeerWireMessage =
   | { t: 'fileFetch'; id: string; requesterAccountId: string; requesterNodeId: string }
   | { t: 'fileData'; id: string; name: string; mime: string; size: number; sha256: string; totalChunks: number; seq: number; data: string }
   | { t: 'sharedFilesSync'; files: SharedFile[] }
-  | { t: 'agentCard'; card: AgentCard }
-  | { t: 'agentCardsSync'; cards: AgentCard[] }
-  | { t: 'agentFetch'; reqId: string; accountId: string; id: string }
-  | { t: 'agentPkg'; reqId: string; pkg?: AgentPackage; error?: string }
-  | { t: 'agentOpen'; reqId: string; agentId: string; caller: string }
-  | { t: 'agentOpened'; reqId: string; ok: boolean; sessionId?: string; error?: string }
-  | { t: 'agentSend'; reqId: string; sessionId: string; text: string }
-  | { t: 'agentSent'; reqId: string; ok: boolean; text?: string; error?: string; turns?: number }
-  | { t: 'agentClose'; sessionId: string }
 
 /** 客户端 → 宿主 */
 export type ClientOutMessage =
