@@ -23,6 +23,7 @@ const DEFAULTS = {
   queueBytes: 64 * 1024 * 1024,
   queueTtlMs: 7 * 24 * 3600 * 1000,
   msgPerSec: 50,
+  bytesPerSec: 4 * 1024 * 1024,
   pingMs: 20_000,
   timeoutMs: 60_000,
 }
@@ -43,6 +44,32 @@ export function createHub(options = {}) {
   const opts = { ...DEFAULTS, ...options }
   const nodes = new Map() // keyId → { account, nodeId, prekey, ws, seen }
   const queue = new Map() // keyId → [{ from, env, at }]
+  /** 封禁名单（keyId） */
+  const blocked = new Set(options.blocked ?? [])
+  /** 每个 keyId 的令牌桶：msgPerSec 令牌/秒，容量 2× */
+  const buckets = new Map() // keyId → { tokens, at, bytes, byteAt }
+
+  const blockedChange = () => options.onBlockedChange?.([...blocked])
+
+  const rateCheck = (keyId, bytes) => {
+    const now = Date.now()
+    let bucket = buckets.get(keyId)
+    if (bucket === undefined) {
+      bucket = { tokens: opts.msgPerSec, at: now, bytes: 0, byteAt: now }
+      buckets.set(keyId, bucket)
+    }
+    // 按时间补充令牌
+    const elapsed = (now - bucket.at) / 1000
+    bucket.tokens = Math.min(opts.msgPerSec * 2, bucket.tokens + elapsed * opts.msgPerSec)
+    bucket.at = now
+    // 字节窗口：1 秒
+    if (now - bucket.byteAt > 1000) { bucket.bytes = 0; bucket.byteAt = now }
+    if (bucket.tokens < 1) return { ok: false, retryAfterMs: Math.ceil((1 - bucket.tokens) / opts.msgPerSec * 1000) }
+    if (bucket.bytes + bytes > opts.bytesPerSec) return { ok: false, retryAfterMs: 1000 }
+    bucket.tokens -= 1
+    bucket.bytes += bytes
+    return { ok: true }
+  }
   const invites = new Map() // code → { remaining }
   for (const code of options.invites ?? []) invites.set(code, { remaining: 0x7fffffff })
 
@@ -88,6 +115,11 @@ export function createHub(options = {}) {
     }
     if (!isKeyId(frame.to)) {
       send(ws, errorFrame(ERR.UNKNOWN_FRAME, 'relay.to 不是合法 keyId'))
+      return
+    }
+    const rate = rateCheck(session.keyId, Buffer.byteLength(frame.env, 'utf8'))
+    if (!rate.ok) {
+      send(ws, errorFrame(ERR.RATE_LIMITED, '发送过快，请稍后再试', { retryAfterMs: rate.retryAfterMs }))
       return
     }
     const target = nodes.get(frame.to)
@@ -205,6 +237,11 @@ export function createHub(options = {}) {
       send(ws, errorFrame(ERR.UNKNOWN_FRAME, 'hello 字段非法'))
       return
     }
+    if (blocked.has(frame.keyId)) {
+      send(ws, errorFrame(ERR.BLOCKED, '该节点已被封禁'))
+      record(`拒绝被封禁的节点 ${frame.keyId}`)
+      return ws.close(1008, 'blocked')
+    }
     if (invites.size > 0 && !nodes.has(frame.keyId)) {
       const code = String(frame.invite ?? '')
       const slot = invites.get(code)
@@ -320,6 +357,48 @@ export function createHub(options = {}) {
       res.end(JSON.stringify({ ok: true, hubId: opts.hubId, nodes: nodes.size, queueBytes: queueBytes() }))
       return
     }
+    if (req.url === '/admin/blocked') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify([...blocked]))
+      return
+    }
+    if (req.url === '/admin/block' && req.method === 'POST') {
+      let body = ''
+      req.on('data', (chunk) => { body += String(chunk) })
+      req.on('end', () => {
+        try {
+          const keyId = String(JSON.parse(body).keyId ?? '')
+          if (!isKeyId(keyId)) { res.writeHead(400); res.end(JSON.stringify({ ok: false, error: 'keyId 非法' })); return }
+          blocked.add(keyId)
+          blockedChange()
+          const node = nodes.get(keyId)
+          if (node?.ws !== undefined) { send(node.ws, errorFrame(ERR.BLOCKED, '该节点已被封禁')); node.ws.close(1008, 'blocked') }
+          record(`封禁 ${keyId}`)
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+        } catch {
+          res.writeHead(400); res.end(JSON.stringify({ ok: false }))
+        }
+      })
+      return
+    }
+    if (req.url === '/admin/unblock' && req.method === 'POST') {
+      let body = ''
+      req.on('data', (chunk) => { body += String(chunk) })
+      req.on('end', () => {
+        try {
+          const keyId = String(JSON.parse(body).keyId ?? '')
+          blocked.delete(keyId)
+          blockedChange()
+          record(`解封 ${keyId}`)
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+        } catch {
+          res.writeHead(400); res.end(JSON.stringify({ ok: false }))
+        }
+      })
+      return
+    }
     if (req.url === '/admin/nodes') {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify([...nodes.entries()].map(([keyId, n]) => ({ keyId, account: n.account, online: n.ws?.readyState === 1, seen: n.seen }))))
@@ -347,6 +426,7 @@ export function createHub(options = {}) {
     hubId: opts.hubId,
     nodes,
     queue,
+    blocked,
     invites,
     log,
     listen(port = 0, host = '127.0.0.1') {

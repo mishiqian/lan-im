@@ -67,9 +67,19 @@ if (tls !== null) {
   fingerprint = x509.fingerprint256.replace(/:/g, '').toLowerCase()
 }
 
+// 封禁名单：落盘在数据目录
+const blockedFile = join(dataDir, 'blocked.json')
+const blocked = existsSync(blockedFile) ? JSON.parse(readFileSync(blockedFile, 'utf8')) : []
+
 const hub = createHub({
   hubId,
   invites,
+  blocked,
+  msgPerSec: Number(arg('msg-per-sec', '50')),
+  bytesPerSec: Number(arg('bytes-per-sec', String(4 * 1024 * 1024))),
+  onBlockedChange: (list) => {
+    try { writeFileSync(blockedFile, JSON.stringify(list, null, 2), { mode: 0o600 }) } catch { /* 忽略 */ }
+  },
   ...(tls === null ? {} : { tls }),
   onLog: (line) => console.log(`[${new Date().toISOString()}] ${line}`),
 })
@@ -82,6 +92,8 @@ hub.listen(port, host).then(({ port: actual }) => {
   console.log(`  管理接口  http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actual}/admin/nodes`)
   console.log(`  邀请码    ${invites.join(', ')}`)
   console.log(`  数据目录  ${dataDir}`)
+  console.log(`  封禁节点  ${blocked.length} 个（POST /admin/block 添加）`)
+  console.log(`  限流      每节点 ${arg('msg-per-sec', '50')} 条/秒，${Math.round(Number(arg('bytes-per-sec', String(4 * 1024 * 1024))) / 1024)} KB/秒`)
   if (tls !== null) {
     console.log('  传输      TLS（自签或指定证书）')
     console.log(`  证书指纹  ${fingerprint}`)

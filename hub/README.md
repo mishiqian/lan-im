@@ -110,6 +110,23 @@ location /hlp {
 
 客户端填 `wss://你的域名` 即可。（内置自签证书在 M2 补齐。）
 
+## 限流与封禁
+
+```bash
+lanim-hub --msg-per-sec 50 --bytes-per-sec 4194304   # 每节点配额（默认值同左）
+```
+
+- 按 **keyId** 计（不按连接，重连绕不过去）：令牌桶 + 1 秒字节窗口
+- 超限回 `hub/error 1003` 并带 `retryAfterMs`，**连接不断开**
+- 封禁名单落盘在 `<data>/blocked.json`，立刻踢掉在线连接，后续握手回 `1008`
+
+```bash
+# 封禁 / 解封 / 查看
+curl -X POST localhost:8787/admin/block   -H 'content-type: application/json' -d '{"keyId":"XXXX…"}'
+curl -X POST localhost:8787/admin/unblock -H 'content-type: application/json' -d '{"keyId":"XXXX…"}'
+curl localhost:8787/admin/blocked
+```
+
 ## 接口
 
 | 路径 | 用途 |
@@ -117,6 +134,8 @@ location /hlp {
 | `ws://…/hlp` | HLP 协议入口 |
 | `GET /health` | 存活与节点数 |
 | `GET /admin/nodes` | 在线节点列表（keyId / account / online / lastSeen） |
+| `GET /admin/blocked` | 封禁名单 |
+| `POST /admin/block` · `POST /admin/unblock` | 封禁 / 解封（body: `{keyId}`） |
 
 ## 测试
 
