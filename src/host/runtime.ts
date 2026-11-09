@@ -155,6 +155,7 @@ export class HostRuntime {
     }
     await this.configureHub(started.url, started.invite)
     this.clients.logEvent(`已在 ${started.url} 启动本机枢纽（邀请码 ${started.invite ?? '无'}）`)
+    if (started.adminUrl !== undefined) this.clients.logEvent(`枢纽管理页：${started.adminUrl}`)
     return { ok: true, url: started.url, ...(started.invite === undefined ? {} : { invite: started.invite }) }
   }
 

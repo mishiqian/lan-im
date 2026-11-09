@@ -18,6 +18,8 @@ export interface ManagedHub {
   invite?: string
   pid?: number
   error?: string
+  /** 管理页地址（含令牌），方便用户直接打开 */
+  adminUrl?: string
 }
 
 /** 从当前模块往上找 hub/bin（源码树、lib/types 产物、软链安装都能命中） */
@@ -121,12 +123,16 @@ export class HubLauncher {
       return this.status()
     }
     const invite = randomBytes(6).toString('base64url').toUpperCase().match(/.{1,4}/g)?.slice(0, 3).join('-') ?? ''
+    // 托管枢纽的管理令牌由插件生成，方便把管理页地址直接写进日志
+    const adminToken = randomBytes(16).toString('hex')
     const child = spawn(process.execPath, [
       HUB_ENTRY, '--port', String(port), '--host', '0.0.0.0', '--data', dataDir,
       ...(invite === '' ? [] : ['--invite', invite]),
+      '--admin-token', adminToken,
     ], { stdio: ['ignore', 'pipe', 'pipe'] })
 
     let stderr = ''
+    child.stdout?.on('data', () => { /* 丢掉，避免管道写满阻塞 */ })
     child.stderr?.on('data', (chunk) => { stderr += String(chunk) })
     child.on('exit', (code) => {
       if (this.child !== child) return
@@ -141,7 +147,13 @@ export class HubLauncher {
       return this.status()
     }
     this.child = child
-    this.info = { running: true, url: `ws://${lanIp}:${port}/hlp`, invite, pid: child.pid }
+    this.info = {
+      running: true,
+      url: `ws://${lanIp}:${port}/hlp`,
+      invite,
+      pid: child.pid,
+      adminUrl: `http://${lanIp}:${port}/admin?token=${adminToken}`,
+    }
     return this.status()
   }
 
