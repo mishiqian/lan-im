@@ -97,9 +97,12 @@ export interface OpenInput {
   envelope: string
 }
 
-export type OpenResult =
-  | { ok: true; header: EnvelopeHeader; plaintext: string }
-  | { ok: false; error: string }
+export interface OpenResult {
+  ok: boolean
+  header?: EnvelopeHeader
+  plaintext?: string
+  error?: string
+}
 
 /** 验签 → 解密；任何一步失败都返回错误，不降级 */
 export function open(input: OpenInput): OpenResult {

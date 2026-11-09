@@ -105,6 +105,13 @@ export class HttpGateway {
                 // 客户端在 dsh-app:// 里拿不到 http origin，这里用请求的 Host 回推
                 return json(res, 200, { ok: true, host: req.headers.host ?? '', action, version: this.runtime.pluginVersion })
               }
+              if (action === 'hub.status') {
+                return json(res, 200, { ok: true, hub: this.runtime.hubStatus() })
+              }
+              if (action === 'hub.configure') {
+                await this.runtime.configureHub(String(body.url ?? ''), typeof body.invite === 'string' ? body.invite : undefined)
+                return json(res, 200, { ok: true, hub: this.runtime.hubStatus() })
+              }
               if (action === 'log') {
                 this.runtime.clients.logEvent(String(body.message ?? '').slice(0, 300))
                 return json(res, 200, { ok: true })
@@ -198,6 +205,7 @@ export class HttpGateway {
               sharedFiles: this.runtime.sharedFileStore.list(),
               identity: { keyId: this.runtime.keyId, observed: this.runtime.identityObserved, pins: this.runtime.trust.list().length },
               host: { version: this.runtime.pluginVersion },
+              hub: this.runtime.hubStatus(),
               clients: this.runtime.clients.count,
               log: this.runtime.clients.log,
             })

@@ -26,6 +26,8 @@ export class Settings {
     } else {
       await this.runtime.saveConfig()
     }
+    // 账号变了要重新握手：枢纽的 hello 里带 account
+    this.runtime.startHub()
     this.runtime.discovery.republish()
     this.runtime.clients.self(self)
     this.runtime.self.hasPassword = typeof password === 'string' && password !== ''
@@ -59,6 +61,8 @@ export class Settings {
     if (trimmed === '') return
     this.runtime.self.name = trimmed
     await this.runtime.saveConfig()
+    // 账号变了要重新握手：枢纽的 hello 里带 account
+    this.runtime.startHub()
     this.runtime.discovery.republish()
     this.runtime.clients.self(this.runtime.self)
     this.runtime.clients.logEvent(`已改名为 ${trimmed}`)
@@ -69,6 +73,8 @@ export class Settings {
     this.runtime.self.hasPsk = this.runtime.psk !== ''
     await this.runtime.saveConfig()
     this.runtime.peerNetwork.clearPeers()
+    // 账号变了要重新握手：枢纽的 hello 里带 account
+    this.runtime.startHub()
     this.runtime.discovery.republish()
     this.runtime.clients.self(this.runtime.self)
     this.runtime.clients.peers(this.runtime.peerNetwork.peersSnapshot())

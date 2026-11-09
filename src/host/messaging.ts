@@ -34,7 +34,13 @@ export class Messaging {
       message.status = 'sent'
       this.runtime.messageStore.push(message)
       this.runtime.outbox.add(message)
-      this.runtime.peerNetwork.deliverToAccount(to)
+      // 有枢纽就走枢纽（LEP 加密），没有才退回局域网直连
+      void this.runtime.sendViaHub(to, 'text', {
+        t: 'msg', id: message.id, from: message.from, fromName: message.fromName,
+        to: message.to, toType: message.toType, body: message.body, ts: message.ts,
+      }).then((sent) => {
+        if (!sent) this.runtime.peerNetwork.deliverToAccount(to)
+      })
     }
     return message
   }

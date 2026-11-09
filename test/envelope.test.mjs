@@ -139,3 +139,29 @@ test('HubClient 完成握手并可路由一条加密消息', { timeout: 15000 },
   clientB.close()
   await hub.stop()
 })
+
+test('hub lookup 按账号返回 keyId 与公钥', { timeout: 15000 }, async () => {
+  const port = await freePort()
+  const hub = await startHub(port)
+  const a = await newIdentity()
+  const b = await newIdentity()
+  const frames = []
+  const clientA = new HubClient(a.identity, { url: `ws://127.0.0.1:${port}/hlp` }, { nodeId: 'node-a', accountId: 'alice' }, {
+    onFrame: (f) => frames.push(f),
+  })
+  const clientB = new HubClient(b.identity, { url: `ws://127.0.0.1:${port}/hlp` }, { nodeId: 'node-b', accountId: 'bob' }, {})
+  clientA.connect(); clientB.connect()
+  await waitFor(() => clientA.getStatus().state === 'online' && clientB.getStatus().state === 'online', 8000)
+
+  clientA.send({ t: 'lookup', v: 1, account: 'bob' })
+  await waitFor(() => frames.some((f) => f.t === 'lookup/result'), 5000)
+  const result = frames.find((f) => f.t === 'lookup/result')
+  assert.equal(result.found, true)
+  assert.equal(result.account, 'bob')
+  assert.equal(result.keyId, b.identity.keyId)
+  assert.equal(result.prekey, b.identity.x25519PublicKey)
+  assert.equal(typeof result.pubkey, 'string')
+
+  clientA.close(); clientB.close()
+  await hub.stop()
+})

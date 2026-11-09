@@ -319,24 +319,13 @@ export class PeerNetwork {
       return
     }
     if (wire.t === 'msg') {
-      if (wire.from === this.runtime.self.accountId) return
-      if (wire.toType === 'account' && wire.to !== this.runtime.self.accountId) return
-      if (wire.toType === 'channel' && !this.runtime.channelRegistry.canReceive(String(wire.to ?? ''))) return
       if (wire.toType === 'account') {
         const conn = this.connections.get(nodeId)
         if (conn !== undefined && conn.readyState === WebSocket.OPEN) {
           try { conn.send(JSON.stringify({ t: 'ack', id: wire.id })) } catch { /* 忽略 */ }
         }
       }
-      if (this.runtime.messageStore.has(wire.id)) return
-      this.runtime.messageStore.push({
-        id: wire.id, from: wire.from, fromName: wire.fromName,
-        to: wire.to, toType: wire.toType === 'account' ? 'account' : 'channel',
-        body: wire.body, ts: wire.ts, kind: 'text', local: false,
-      })
-      const peer = this.peers.get(nodeId)
-      if (peer !== undefined) peer.lastSeen = Date.now()
-      this.runtime.clients.logEvent(`收到 ${wire.fromName} 的${wire.toType === 'account' ? '私' : '频道'}消息`)
+      this.runtime.receiveRemoteMessage(wire)
     } else if (wire.t === 'ack') {
       const peer = this.peers.get(nodeId)
       if (peer === undefined) return

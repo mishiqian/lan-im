@@ -63,6 +63,7 @@ export class ClientHub {
   file(file: FileInfo): void { this.broadcast({ t: 'file', file }) }
 
   sharedFiles(sharedFiles: SharedFile[]): void { this.broadcast({ t: 'sharedFiles', sharedFiles }) }
+  hubStatus(status: unknown): void { this.broadcast({ t: 'hubStatus', status }) }
 
   searchResult(ws: WebSocket, keyword: unknown, results: ChatMessage[]): void {
     this.send(ws, { t: 'searchResult', keyword, results })

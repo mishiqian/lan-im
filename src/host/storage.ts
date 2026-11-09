@@ -56,6 +56,10 @@ export interface StoredConfig {
   psk?: string
   channels?: Channel[]
   hiddenChannels?: string[]
+  /** 通信枢纽：配了才启用（M1 全部经枢纽） */
+  hub?: { url: string; invite?: string }
+  /** LEP 发送序列号：必须持久化，否则接收方判重失效（PROTOCOL.md §4.2） */
+  hubSeq?: number
 }
 
 /**

@@ -101,18 +101,25 @@ export function createHub(options = {}) {
   }
 
   const handleLookup = (ws, frame) => {
-    if (!isKeyId(frame.keyId)) {
-      send(ws, errorFrame(ERR.UNKNOWN_FRAME, 'lookup.keyId 非法'))
+    // 支持两种寻址：按 keyId（已知指纹）或按 account（用户输入的账号）
+    let keyId = isKeyId(frame.keyId) ? frame.keyId : undefined
+    if (keyId === undefined && typeof frame.account === 'string' && frame.account !== '') {
+      for (const [id, node] of nodes) {
+        if (node.account === frame.account) { keyId = id; break }
+      }
+    }
+    if (keyId === undefined) {
+      send(ws, { t: 'lookup/result', v: 1, keyId: frame.keyId ?? '', account: frame.account ?? '', found: false })
       return
     }
-    const node = nodes.get(frame.keyId)
-    if (node === undefined || node.prekey === undefined) {
-      send(ws, { t: 'lookup/result', v: 1, keyId: frame.keyId, found: false })
+    const node = nodes.get(keyId)
+    if (node === undefined) {
+      send(ws, { t: 'lookup/result', v: 1, keyId, account: frame.account ?? '', found: false })
       return
     }
     send(ws, {
-      t: 'lookup/result', v: 1, keyId: frame.keyId, found: true,
-      account: node.account, prekey: node.prekey, prekeySig: node.prekeySig,
+      t: 'lookup/result', v: 1, keyId, found: true, account: node.account,
+      pubkey: node.pubkey, prekey: node.prekey, prekeySig: node.prekeySig,
       hubId: opts.hubId, online: node.ws?.readyState === 1,
     })
   }
@@ -165,6 +172,7 @@ export function createHub(options = {}) {
     nodes.set(session.keyId, {
       account: session.account,
       nodeId: session.nodeId,
+      pubkey: session.pubkeyB64u,
       prekey: session.prekey,
       prekeySig: session.prekeySig,
       ws,
@@ -284,7 +292,7 @@ export function createHub(options = {}) {
         if (node !== undefined) node.seen = Date.now()
         for (const [keyId, other] of nodes) {
           if (keyId === session.keyId) continue
-          send(other.ws, { t: 'presence', v: PROTOCOL_VERSION, keyId: session.keyId, status: frame.status ?? 'online', lastSeen: Date.now() })
+          send(other.ws, { t: 'presence', v: PROTOCOL_VERSION, keyId: session.keyId, account: session.account, status: frame.status ?? 'online', lastSeen: Date.now() })
         }
         return
       }

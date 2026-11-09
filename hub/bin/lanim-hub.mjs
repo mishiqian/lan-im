@@ -36,11 +36,12 @@ if (existsSync(inviteFile)) {
   writeFileSync(inviteFile, JSON.stringify(invites, null, 2), { mode: 0o600 })
 }
 
-// 自签证书：没有就生成（局域网 wss 需要）
+// 自签证书：只有显式 --tls 时才生成/使用（默认明文，生产建议前置反向代理）
+const wantTls = args.includes('--tls')
 const certFile = join(dataDir, 'hub.crt')
 const keyFile = join(dataDir, 'hub.key')
 let tls = null
-if (!existsSync(certFile)) {
+if (wantTls && !existsSync(certFile)) {
   try {
     execFileSync('openssl', [
       'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '825',
@@ -51,7 +52,7 @@ if (!existsSync(certFile)) {
   } catch {
     console.warn('未找到 openssl，本次以明文 ws 启动（仅建议内网/本机使用）')
   }
-} else {
+} else if (wantTls) {
   tls = { key: readFileSync(keyFile), cert: readFileSync(certFile) }
 }
 
@@ -70,6 +71,7 @@ hub.listen(port, host).then(({ port: actual }) => {
   console.log(`  管理接口  http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actual}/admin/nodes`)
   console.log(`  邀请码    ${invites.join(', ')}`)
   console.log(`  数据目录  ${dataDir}`)
-  if (tls !== null) console.log('  证书      已生成（自签，生产建议前置反向代理套 TLS）')
+  if (tls !== null) console.log('  证书      自签 TLS 已启用（生产建议前置反向代理）')
+  else console.log('  传输      明文 ws（仅内网/本机；公网请用反向代理套 TLS）')
   console.log('')
 })
