@@ -66,6 +66,7 @@ export function Icon(props: { name: keyof typeof ICON_PATHS & string; size?: num
 }
 
 export function ContactItem(props: { icon: string; name: string; active: boolean; unread: number; muted: boolean; onClick: () => void; onLeave?: () => void; onManage?: () => void }): React.ReactElement {
+  const initials = (props.name || '?').trim().slice(0, 1).toUpperCase()
   return React.createElement('div',
     {
       className: 'lim-contact' + (props.active ? ' on' : ''),
@@ -76,7 +77,7 @@ export function ContactItem(props: { icon: string; name: string; active: boolean
       onKeyDown: (e: any) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onClick() } },
     },
     props.icon === 'dot'
-      ? React.createElement('span', { className: 'lim-cdot' })
+      ? React.createElement('span', { className: 'lim-cavatar' }, initials)
       : React.createElement('span', { className: 'lim-cicon' }, React.createElement(Icon, { name: props.icon, size: 15 })),
     React.createElement('span', { className: 'lim-contact-name', title: props.name }, props.name),
     props.muted ? React.createElement('span', { className: 'lim-contact-mute' }, React.createElement(Icon, { name: 'bellOff', size: 13 })) : null,
@@ -92,7 +93,7 @@ export function ContactItem(props: { icon: string; name: string; active: boolean
   )
 }
 
-export function MessageBubble(props: { message: ChatMessage; selfAccountId: string; onRecall: (id: string) => void; onEdit: (id: string) => void }): React.ReactElement {
+export function MessageBubble(props: { message: ChatMessage; selfAccountId: string; onRecall: (id: string) => void; onEdit: (id: string) => void; compact?: boolean }): React.ReactElement {
   const message = props.message
   if (message.kind === 'system') {
     return React.createElement('div', { className: 'lim-sys' }, message.body)
@@ -105,8 +106,9 @@ export function MessageBubble(props: { message: ChatMessage; selfAccountId: stri
     )
   }
   const statusText = message.status === 'delivered' ? '已送达' : ''
-  return React.createElement('div', { className: 'lim-msg' + (mine ? ' mine' : '') },
-    React.createElement('div', { className: 'lim-msg-meta' },
+  const compact = props.compact === true
+  return React.createElement('div', { className: 'lim-msg' + (mine ? ' mine' : '') + (compact ? ' compact' : '') },
+    compact ? null : React.createElement('div', { className: 'lim-msg-meta' },
       React.createElement('span', null, `${message.fromName} · ${formatTime(message.ts)}${message.edited ? ' · 已编辑' : ''}`),
       mine && message.toType === 'account' && statusText !== '' ? React.createElement('span', null, statusText) : null,
       mine && !message.recalled ? React.createElement('span', { className: 'lim-msg-act', onClick: () => props.onRecall(message.id) }, '撤回') : null,
@@ -309,9 +311,10 @@ export function ProfileCenter(props: {
       ),
 
       React.createElement('div', { className: 'lim-profile-status' },
-        React.createElement('span', { className: 'lim-pill' + (props.connected ? ' on' : '') }, props.connected ? '● 宿主已连接' : '○ 宿主重连中'),
-        React.createElement('span', { className: 'lim-pill' + (self.hasPsk ? ' on' : '') }, self.hasPsk ? '🔐 共享密钥已启用' : '🔓 共享密钥未启用'),
-        React.createElement('span', { className: 'lim-pill' + (self.hasPassword ? ' on' : '') }, self.hasPassword ? '🔑 本机密码已设置' : '🔓 本机密码未设置'),
+        React.createElement('span', { className: 'lim-pill' + (props.connected ? ' on' : '') },
+          React.createElement(Icon, { name: 'dot', size: 12 }), props.connected ? '宿主已连接' : '宿主重连中'),
+        React.createElement('span', { className: 'lim-pill' + (self.hasPsk ? ' on' : '') }, self.hasPsk ? '共享密钥已启用' : '共享密钥未启用'),
+        React.createElement('span', { className: 'lim-pill' + (self.hasPassword ? ' on' : '') }, self.hasPassword ? '本机密码已设置' : '本机密码未设置'),
       ),
 
       React.createElement('div', { className: 'lim-profile-stats' },
@@ -324,7 +327,7 @@ export function ProfileCenter(props: {
         React.createElement('label', null, '通信枢纽'),
         React.createElement('div', { className: 'lim-row' },
           React.createElement('input', {
-            className: 'lim-input', value: hubUrl, placeholder: 'ws://192.168.1.20:8787/hlp?invite=XXXX 或分开填',
+            className: 'lim-input', value: hubUrl, placeholder: 'wss://hub.example.com/hlp',
             onChange: (e: any) => setHubUrl(e.target.value),
           }),
           React.createElement('button', {
@@ -334,7 +337,7 @@ export function ProfileCenter(props: {
         ),
         React.createElement('div', { className: 'lim-row' },
           React.createElement('input', {
-            className: 'lim-input', value: hubInvite, placeholder: '邀请码（已写在地址里可留空）',
+            className: 'lim-input', value: hubInvite, placeholder: '邀请码（地址里带了可留空）',
             onChange: (e: any) => setHubInvite(e.target.value),
           }),
         ),
@@ -679,11 +682,17 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
           React.createElement('div', { className: 'lim-empty-title' }, activeType === 'channel' ? '这个频道还没有消息' : '还没有私聊消息'),
           React.createElement('div', { className: 'lim-empty-hint' }, activeType === 'channel' ? '说点什么，同一局域网内装了本插件的实例都会收到' : '从左侧选一个人，开始第一次对话'),
         )
-        : merged.map((item) => {
+        : merged.map((item, idx) => {
             if (item._file === true) {
               return React.createElement(FileBubble, { key: item.f.id, file: item.f, selfAccountId: self?.accountId ?? '' })
             }
-            return React.createElement(MessageBubble, { key: item.m.id, message: item.m, selfAccountId: self?.accountId ?? '', onRecall: props.onRecall, onEdit: (id) => { setEditingId(id); setDraft(item.m.body) } })
+            // 同一个人 5 分钟内的连续消息，隐藏重复的昵称与时间
+            const prev = merged[idx - 1]
+            const prevMsg = prev !== undefined && prev._file !== true ? prev.m : undefined
+            const compact = prevMsg !== undefined
+              && prevMsg.from === item.m.from
+              && Math.abs(item.m.ts - prevMsg.ts) < 5 * 60 * 1000
+            return React.createElement(MessageBubble, { key: item.m.id, message: item.m, compact, selfAccountId: self?.accountId ?? '', onRecall: props.onRecall, onEdit: (id) => { setEditingId(id); setDraft(item.m.body) } })
           }))
 
   const fileList = activeType !== 'channel' || channelShared.length === 0
@@ -843,7 +852,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
             React.createElement('div', { className: 'lim-contacts' },
               React.createElement('div', { className: 'lim-contacts-scroll' },
                 React.createElement('div', { className: 'lim-contacts-group' }, '频道'),
-                React.createElement(ContactItem, { icon: 'users', name: '公共频道', active: active === '*' && activeType === 'channel', unread: unread['*'] ?? 0, muted: muted.has('*'), onClick: () => props.onSelect('*', 'channel') }),
+                React.createElement(ContactItem, { icon: 'hash', name: '公共频道', active: active === '*' && activeType === 'channel', unread: unread['*'] ?? 0, muted: muted.has('*'), onClick: () => props.onSelect('*', 'channel') }),
                 channels.filter((c) => c.id !== '*').map((c) => c.joined === false
                   ? React.createElement(ContactItem, {
                       key: c.id,
@@ -869,16 +878,16 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
                   React.createElement('span', { className: 'lim-cicon' }, React.createElement(Icon, { name: 'plus', size: 15 })),
                   '新建频道',
                 ),
-              ),
-              React.createElement('div', { className: 'lim-dms' },
+              React.createElement('div', { className: 'lim-dm-group' },
                 React.createElement('div', { className: 'lim-contacts-group' }, accounts.length > 0 ? `私聊 · ${accounts.length}` : '私聊'),
-                React.createElement('div', { className: 'lim-dms-scroll' },
+React.createElement('div', { className: 'lim-dm-scroll' },
                   accounts.length === 0
                     ? React.createElement('div', { className: 'lim-contact', style: { color: 'var(--lim-faint)', cursor: 'default' } },
                         React.createElement('span', { className: 'lim-contact-name' }, '同一局域网暂时没人'),
                       )
                     : accounts.map((p) => React.createElement(ContactItem, { key: p.accountId, icon: 'dot', name: p.name || p.accountId, active: active === p.accountId && activeType === 'account', unread: unread[p.accountId] ?? 0, muted: muted.has(p.accountId), onClick: () => props.onSelect(p.accountId, 'account') })),
                 ),
+              ),
               ),
               React.createElement('div', { className: 'lim-me' },
                 React.createElement('span', { className: 'lim-me-avatar' }, meInitials),
@@ -899,8 +908,11 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
             ),
             React.createElement('div', { className: 'lim-thread' },
               React.createElement('div', { className: 'lim-thread-title' },
-                React.createElement('span', { className: 'lim-cicon' },
-                  React.createElement(Icon, { name: activeType === 'account' ? 'users' : (activeChannel?.kind === 'private' ? 'lock' : 'hash'), size: 15 })),
+                activeType === 'account'
+                  ? React.createElement('span', { className: 'lim-cavatar' },
+                      (accounts.find((a) => a.accountId === active)?.name || active).trim().slice(0, 1).toUpperCase())
+                  : React.createElement('span', { className: 'lim-cicon' },
+                      React.createElement(Icon, { name: activeChannel?.kind === 'private' ? 'lock' : 'hash', size: 15 })),
                 React.createElement('span', { className: 'lim-thread-name' },
                   activeType === 'account'
                     ? (accounts.find((a) => a.accountId === active)?.name || active)
@@ -916,7 +928,8 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
                   ? React.createElement('button', { className: 'lim-iconbtn', title: '频道管理', 'aria-label': '频道管理', onClick: () => setShowManageModal(true) }, React.createElement(Icon, { name: 'settings', size: 15 }))
                   : null,
               ),
-              React.createElement('div', { className: 'lim-messages', ref: threadRef }, activeTab === 'files' ? fileList : messageList),
+              React.createElement('div', { className: 'lim-messages', ref: threadRef },
+                React.createElement('div', { className: 'lim-messages-inner' }, activeTab === 'files' ? fileList : messageList)),
               activeTab === 'files' ? fileToolbar : inputBar,
             ),
           ),
