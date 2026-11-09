@@ -200,30 +200,57 @@ export function AccountSetup(props: { connected: boolean; onSetup: (username: st
   const [username, setUsername] = React.useState('')
   const [displayName, setDisplayName] = React.useState('')
   const [password, setPassword] = React.useState('')
+  const [showPassword, setShowPassword] = React.useState(false)
   const submit = (): void => { const u = username.trim(); if (u === '') return; props.onSetup(u, displayName.trim(), password) }
   const initials = (displayName.trim() || username.trim() || '?').slice(0, 2).toUpperCase()
+  const canSubmit = username.trim() !== '' && props.connected
+
   return React.createElement('div', { className: 'lim-setup' },
-    React.createElement('div', { className: 'lim-profile-head' },
+    React.createElement('div', { className: 'lim-setup-hero' },
       React.createElement('div', { className: 'lim-avatar' }, initials),
-      React.createElement('div', { className: 'lim-profile-id' },
+      React.createElement('div', null,
         React.createElement('div', { className: 'lim-setup-title' }, '创建你的账号'),
-        React.createElement('div', { className: 'lim-setup-hint' }, '账号是你在局域网内的稳定身份；密码只用于本机。'),
+        React.createElement('div', { className: 'lim-setup-hint' }, '账号是你在网络里的身份，别人靠它找到你。'),
       ),
     ),
-    React.createElement('div', { className: 'lim-field' },
-      React.createElement('label', null, '账号 ID（字母/数字/._-）'),
-      React.createElement('input', { className: 'lim-input', value: username, placeholder: '如 alice', autoFocus: true, maxLength: 32, onChange: (e: any) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, '')), onKeyDown: (e: any) => { if (e.key === 'Enter') submit() } }),
+
+    React.createElement('div', { className: 'lim-section' },
+      React.createElement('div', { className: 'lim-section-title' }, '账号 ID'),
+      React.createElement('input', {
+        className: 'lim-input', value: username, placeholder: 'alice', autoFocus: true, maxLength: 32,
+        'aria-describedby': 'lim-username-hint',
+        onChange: (e: any) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, '')),
+        onKeyDown: (e: any) => { if (e.key === 'Enter') submit() },
+      }),
+      React.createElement('div', { className: 'lim-section-hint', id: 'lim-username-hint' }, '字母、数字、下划线、点或连字符，创建后不可更改。'),
+      React.createElement('div', { className: 'lim-section-title' }, '显示名'),
+      React.createElement('input', {
+        className: 'lim-input', value: displayName, placeholder: '张三', maxLength: 32,
+        onChange: (e: any) => setDisplayName(e.target.value),
+        onKeyDown: (e: any) => { if (e.key === 'Enter') submit() },
+      }),
     ),
-    React.createElement('div', { className: 'lim-field' },
-      React.createElement('label', null, '显示名'),
-      React.createElement('input', { className: 'lim-input', value: displayName, placeholder: '如 张三', maxLength: 32, onChange: (e: any) => setDisplayName(e.target.value), onKeyDown: (e: any) => { if (e.key === 'Enter') submit() } }),
+
+    React.createElement('div', { className: 'lim-section' },
+      React.createElement('div', { className: 'lim-section-title' }, '本机密码（可选）'),
+      React.createElement('div', { className: 'lim-row' },
+        React.createElement('input', {
+          className: 'lim-input', type: showPassword ? 'text' : 'password', value: password, placeholder: '留空则不设密码',
+          onChange: (e: any) => setPassword(e.target.value),
+          onKeyDown: (e: any) => { if (e.key === 'Enter') submit() },
+        }),
+        React.createElement('button', { className: 'lim-mini', onClick: () => setShowPassword((v) => !v) }, showPassword ? '隐藏' : '显示'),
+      ),
+      React.createElement('div', { className: 'lim-section-hint' }, '仅用于打开本机的聊天窗，不参与网络通信。'),
     ),
-    React.createElement('div', { className: 'lim-field' },
-      React.createElement('label', null, '密码（可选）'),
-      React.createElement('input', { className: 'lim-input', type: 'password', value: password, placeholder: '留空则不设密码', onChange: (e: any) => setPassword(e.target.value), onKeyDown: (e: any) => { if (e.key === 'Enter') submit() } }),
+
+    props.connected
+      ? null
+      : React.createElement('div', { className: 'lim-setup-hint lim-warn' }, '正在连接宿主，连接完成后才能创建账号。'),
+
+    React.createElement('div', { className: 'lim-row' },
+      React.createElement('button', { className: 'lim-send lim-cta', disabled: !canSubmit, onClick: submit }, '创建账号'),
     ),
-    props.connected ? null : React.createElement('div', { className: 'lim-setup-hint lim-warn' }, '宿主未连接，正在自动重连……连不上时点按钮不会有反应'),
-    React.createElement('button', { className: 'lim-send lim-cta', onClick: submit }, '创建账号'),
   )
 }
 
@@ -770,38 +797,88 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
 
   const manageModal = showManageModal && activeChannel !== undefined
     ? React.createElement('div', { className: 'lim-modal' },
-        React.createElement('div', { className: 'lim-modal-box wide' },
-          React.createElement('div', { className: 'lim-setup-title' }, `管理频道：${activeChannel.name}`),
-          canManageActive ? React.createElement(React.Fragment, null,
-            React.createElement('input', { className: 'lim-input', value: manageName, placeholder: '频道名', onChange: (e: any) => setManageName(e.target.value) }),
-            React.createElement('input', { className: 'lim-input', value: manageDesc, placeholder: '描述（可选）', onChange: (e: any) => setManageDesc(e.target.value) }),
-            React.createElement('button', { className: 'lim-send', onClick: () => { if (manageName.trim() !== '') props.onRenameChannel(activeChannel.id, manageName.trim(), manageDesc.trim() || undefined); setShowManageModal(false) } }, '保存名称/描述'),
-          ) : null,
-          activeChannel.kind === 'private' && canManageActive ? React.createElement(React.Fragment, null,
-            React.createElement('div', { className: 'lim-row' },
-              React.createElement(React.Fragment, null,
-                React.createElement('input', {
-                  ref: memberInputRef, className: 'lim-input', list: `lim-members-${activeChannel.id}`,
-                  value: memberDraft, placeholder: '输入账号或选择在线成员',
-                  onChange: (e: any) => setMemberDraft(e.target.value),
-                  onKeyDown: (e: any) => { if (e.key === 'Enter' && memberDraft.trim() !== '') { props.onInviteMember(activeChannel.id, memberDraft.trim()); setMemberDraft('') } },
-                }),
+        React.createElement('div', { className: 'lim-modal-box wide lim-form-modal' },
+          React.createElement('div', { className: 'lim-modal-head' },
+            React.createElement('div', null,
+              React.createElement('div', { className: 'lim-modal-title' }, activeChannel.name),
+              React.createElement('div', { className: 'lim-modal-sub' },
+                activeChannel.kind === 'private' ? '私有频道 · 仅成员可见' : '公开频道 · 所有节点可见'),
+            ),
+            React.createElement('button', { className: 'lim-iconbtn', title: '关闭', 'aria-label': '关闭', onClick: () => setShowManageModal(false) },
+              React.createElement(Icon, { name: 'close' })),
+          ),
+
+          canManageActive
+            ? React.createElement('div', { className: 'lim-section' },
+                React.createElement('div', { className: 'lim-section-title' }, '名称与描述'),
+                React.createElement('input', { className: 'lim-input', value: manageName, placeholder: '频道名', onChange: (e: any) => setManageName(e.target.value) }),
+                React.createElement('input', { className: 'lim-input', value: manageDesc, placeholder: '描述（可选）', onChange: (e: any) => setManageDesc(e.target.value) }),
+                React.createElement('div', { className: 'lim-row' },
+                  React.createElement('button', {
+                    className: 'lim-send',
+                    onClick: () => { if (manageName.trim() !== '') props.onRenameChannel(activeChannel.id, manageName.trim(), manageDesc.trim() || undefined); setShowManageModal(false) },
+                  }, '保存'),
+                ),
+              )
+            : React.createElement('div', { className: 'lim-section' },
+                React.createElement('div', { className: 'lim-section-title' }, '描述'),
+                React.createElement('div', { className: 'lim-section-hint' }, activeChannel.description || '这个频道没有描述'),
+              ),
+
+          activeChannel.kind === 'private' && canManageActive
+            ? React.createElement('div', { className: 'lim-section' },
+                React.createElement('div', { className: 'lim-section-title' }, `成员（${(activeChannel.members ?? []).length}）`),
+                React.createElement('div', { className: 'lim-row' },
+                  React.createElement('input', {
+                    ref: memberInputRef, className: 'lim-input', list: `lim-members-${activeChannel.id}`,
+                    value: memberDraft, placeholder: '输入账号邀请',
+                    onChange: (e: any) => setMemberDraft(e.target.value),
+                    onKeyDown: (e: any) => { if (e.key === 'Enter' && memberDraft.trim() !== '') { props.onInviteMember(activeChannel.id, memberDraft.trim()); setMemberDraft('') } },
+                  }),
+                  React.createElement('button', {
+                    className: 'lim-send',
+                    onClick: () => { if (memberDraft.trim() !== '') { props.onInviteMember(activeChannel.id, memberDraft.trim()); setMemberDraft('') } },
+                  }, '邀请'),
+                ),
                 React.createElement('datalist', { id: `lim-members-${activeChannel.id}` },
                   accounts.filter((a) => !(activeChannel.members ?? []).includes(a.accountId)).map((a) => React.createElement('option', { key: a.accountId, value: a.accountId }, `${a.name || a.accountId}`)),
                 ),
-              ),
-              React.createElement('button', { className: 'lim-send', onClick: () => { if (memberDraft.trim() !== '') { props.onInviteMember(activeChannel.id, memberDraft.trim()); setMemberDraft('') } } }, '邀请'),
-            ),
-            React.createElement('div', { className: 'lim-member-list' },
-              (activeChannel.members ?? []).map((m) => React.createElement('div', { className: 'lim-member', key: m },
-                React.createElement('span', null, m),
-                m !== activeChannel.createdBy ? React.createElement('button', { className: 'lim-iconbtn', title: '移除成员', 'aria-label': '移除成员', onClick: () => props.onRemoveMember(activeChannel.id, m) }, React.createElement(Icon, { name: 'close', size: 14 })) : React.createElement('span', { className: 'lim-member-owner' }, '创建者'),
-              )),
-            ),
-          ) : null,
-          canManageActive ? React.createElement('button', { className: 'lim-send danger', onClick: () => { props.onDeleteChannel(activeChannel.id); setShowManageModal(false); if (active === activeChannel.id) props.onSelect('*', 'channel') } }, '解散频道') : null,
-          activeChannel.kind === 'private' ? React.createElement('button', { className: 'lim-send danger', onClick: () => { props.onLeaveChannel(activeChannel.id); setShowManageModal(false); props.onSelect('*', 'channel') } }, canManageActive ? '退出（转移所有权/解散）' : '退出私有频道') : null,
-          React.createElement('button', { className: 'lim-send', style: { background: 'transparent', color: 'var(--lim-muted)', border: '1px solid var(--lim-border)' }, onClick: () => setShowManageModal(false) }, '关闭'),
+                React.createElement('div', { className: 'lim-member-list' },
+                  (activeChannel.members ?? []).map((m) => React.createElement('div', { className: 'lim-member', key: m },
+                    React.createElement('span', { className: 'lim-member-name' }, m),
+                    m === activeChannel.createdBy
+                      ? React.createElement('span', { className: 'lim-member-owner' }, '创建者')
+                      : React.createElement('button', { className: 'lim-iconbtn', title: '移除成员', 'aria-label': '移除成员', onClick: () => props.onRemoveMember(activeChannel.id, m) },
+                          React.createElement(Icon, { name: 'close', size: 14 })),
+                  )),
+                ),
+              )
+            : null,
+
+          canManageActive || activeChannel.kind === 'private'
+            ? React.createElement('div', { className: 'lim-section lim-danger-zone' },
+                React.createElement('div', { className: 'lim-section-title' }, '危险操作'),
+                React.createElement('div', { className: 'lim-section-hint' }, '这些操作不可撤销。'),
+                React.createElement('div', { className: 'lim-row' },
+                  canManageActive
+                    ? React.createElement('button', {
+                        className: 'lim-mini danger',
+                        onClick: () => { props.onDeleteChannel(activeChannel.id); setShowManageModal(false); if (active === activeChannel.id) props.onSelect('*', 'channel') },
+                      }, '解散频道')
+                    : null,
+                  activeChannel.kind === 'private'
+                    ? React.createElement('button', {
+                        className: 'lim-mini danger',
+                        onClick: () => { props.onLeaveChannel(activeChannel.id); setShowManageModal(false); props.onSelect('*', 'channel') },
+                      }, '退出频道')
+                    : null,
+                ),
+              )
+            : null,
+
+          React.createElement('div', { className: 'lim-modal-actions' },
+            React.createElement('button', { className: 'lim-send ghost', onClick: () => setShowManageModal(false) }, '关闭'),
+          ),
         ),
       )
     : null
@@ -826,19 +903,44 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
 
   const channelModal = showChannelModal
     ? React.createElement('div', { className: 'lim-modal' },
-        React.createElement('div', { className: 'lim-modal-box wide' },
-          React.createElement('div', { className: 'lim-setup-title' }, '新建频道'),
-          React.createElement('input', { ref: channelInputRef, className: 'lim-input', value: newChannelName, placeholder: '频道名（1-32 字符）', onChange: (e: any) => setNewChannelName(e.target.value), onCompositionStart: () => { composingRef.current = true }, onCompositionEnd: () => { composingRef.current = false }, onKeyDown: (e: any) => { if (e.key === 'Enter') { if (composingRef.current || (e.nativeEvent && e.nativeEvent.isComposing)) return; createChannelSubmit() } if (e.key === 'Escape') { setNewChannelName(''); setShowChannelModal(false) } } }),
-          React.createElement('input', { className: 'lim-input', value: newChannelDesc, placeholder: '描述（可选）', onChange: (e: any) => setNewChannelDesc(e.target.value) }),
-          React.createElement('div', { className: 'lim-row' },
-            React.createElement('select', { className: 'lim-input', value: newChannelKind, onChange: (e: any) => setNewChannelKind(e.target.value === 'private' ? 'private' : 'public') },
-              React.createElement('option', { value: 'public' }, '公开频道'),
-              React.createElement('option', { value: 'private' }, '私有频道（仅成员可见）'),
+        React.createElement('div', { className: 'lim-modal-box wide lim-form-modal' },
+          React.createElement('div', { className: 'lim-modal-head' },
+            React.createElement('div', null,
+              React.createElement('div', { className: 'lim-modal-title' }, '新建频道'),
+              React.createElement('div', { className: 'lim-modal-sub' }, '频道是共享的消息与文件空间'),
             ),
+            React.createElement('button', { className: 'lim-iconbtn', title: '关闭', 'aria-label': '关闭', onClick: () => { setNewChannelName(''); setNewChannelDesc(''); setShowChannelModal(false) } },
+              React.createElement(Icon, { name: 'close' })),
           ),
+
+          React.createElement('div', { className: 'lim-section' },
+            React.createElement('div', { className: 'lim-section-title' }, '频道名'),
+            React.createElement('input', {
+              ref: channelInputRef, className: 'lim-input', value: newChannelName, placeholder: '例如：产品讨论',
+              onChange: (e: any) => setNewChannelName(e.target.value),
+              onCompositionStart: () => { composingRef.current = true },
+              onCompositionEnd: () => { composingRef.current = false },
+              onKeyDown: (e: any) => {
+                if (e.key === 'Enter') { if (composingRef.current || (e.nativeEvent && e.nativeEvent.isComposing)) return; createChannelSubmit() }
+                if (e.key === 'Escape') { setNewChannelName(''); setNewChannelDesc(''); setShowChannelModal(false) }
+              },
+            }),
+            React.createElement('div', { className: 'lim-section-title' }, '描述'),
+            React.createElement('input', { className: 'lim-input', value: newChannelDesc, placeholder: '可选，一句话说明用途', onChange: (e: any) => setNewChannelDesc(e.target.value) }),
+          ),
+
+          React.createElement('div', { className: 'lim-section' },
+            React.createElement('div', { className: 'lim-section-title' }, '可见性'),
+            React.createElement('select', { className: 'lim-select', value: newChannelKind, onChange: (e: any) => setNewChannelKind(e.target.value === 'private' ? 'private' : 'public') },
+              React.createElement('option', { value: 'public' }, '公开频道 · 所有节点可见'),
+              React.createElement('option', { value: 'private' }, '私有频道 · 仅成员可见'),
+            ),
+            React.createElement('div', { className: 'lim-section-hint' }, '创建后可在频道管理里调整名称与成员。'),
+          ),
+
           React.createElement('div', { className: 'lim-modal-actions' },
+            React.createElement('button', { className: 'lim-send ghost', onClick: () => { setNewChannelName(''); setNewChannelDesc(''); setShowChannelModal(false) } }, '取消'),
             React.createElement('button', { className: 'lim-send', onClick: createChannelSubmit }, '创建'),
-            React.createElement('button', { className: 'lim-send', style: { background: 'transparent', color: 'var(--lim-muted)', border: '1px solid var(--lim-border)' }, onClick: () => { setNewChannelName(''); setNewChannelDesc(''); setShowChannelModal(false) } }, '取消'),
           ),
         ),
       )

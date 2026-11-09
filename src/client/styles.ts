@@ -150,7 +150,7 @@ export const CSS = `
 .lim-send{display:grid;place-items:center;height:36px;min-width:56px;padding:0 14px;border:none;border-radius:10px;background:var(--lim-accent-solid);color:var(--lim-on-accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:filter .12s ease}
 .lim-send:hover{filter:brightness(1.12)}
 .lim-send:focus-visible{outline:2px solid var(--lim-accent);outline-offset:2px}
-.lim-send:disabled{opacity:.45;cursor:not-allowed}
+.lim-send:disabled{background:var(--lim-hover);color:var(--lim-faint);cursor:not-allowed;filter:none}
 .lim-send.danger{background:var(--lim-danger)}
 .lim-cta{align-self:flex-end;height:38px;min-width:100px;font-size:13.5px}
 
@@ -159,7 +159,18 @@ export const CSS = `
 /* ---------- 弹层 ---------- */
 .lim-modal{position:absolute;inset:0;z-index:40;display:grid;place-items:center;background:rgba(6,8,12,.6);backdrop-filter:blur(2px)}
 .lim-modal-box{display:flex;flex-direction:column;gap:14px;width:320px;max-width:calc(100% - 32px);padding:20px;border-radius:16px;background:var(--lim-bg);border:1px solid var(--lim-border);box-shadow:0 24px 64px rgba(0,0,0,.5)}
-.lim-modal-box.wide{width:380px;max-width:calc(100% - 32px)}
+.lim-modal-box.wide{width:400px;max-width:calc(100% - 32px)}
+.lim-form-modal{width:400px;max-width:calc(100% - 32px);max-height:calc(100% - 32px);overflow-y:auto;gap:18px}
+.lim-modal-head{display:flex;align-items:flex-start;gap:12px}
+.lim-modal-title{font-size:16px;font-weight:650;line-height:1.4}
+.lim-modal-sub{font-size:12px;color:var(--lim-faint);margin-top:2px}
+.lim-modal-head .lim-iconbtn{margin-left:auto;flex:none}
+.lim-select{width:100%;padding:9px 12px;font:inherit;font-size:13.5px;color:var(--lim-fg);background:var(--lim-surface);border:1px solid transparent;border-radius:10px;outline:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--lim-muted) 50%),linear-gradient(135deg,var(--lim-muted) 50%,transparent 50%);background-position:calc(100% - 17px) 50%,calc(100% - 12px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;cursor:pointer}
+.lim-select:focus{border-color:var(--lim-accent);box-shadow:0 0 0 3px var(--lim-accent-weak)}
+.lim-danger-zone{border-top:1px solid var(--lim-border);padding-top:16px}
+.lim-mini.danger{color:var(--lim-danger);border-color:color-mix(in srgb,var(--lim-danger) 35%,transparent)}
+.lim-mini.danger:hover{background:color-mix(in srgb,var(--lim-danger) 12%,transparent);color:var(--lim-danger)}
+.lim-member-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lim-modal-actions{display:flex;gap:8px;justify-content:flex-end}
 .lim-modal .lim-send{min-width:68px}
 .lim-modal .lim-send.ghost{background:transparent;color:var(--lim-muted);border:1px solid var(--lim-border)}
@@ -173,7 +184,9 @@ export const CSS = `
 .lim-logline{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--lim-muted)}
 
 /* ---------- 建号 ---------- */
-.lim-setup{flex:1;display:flex;flex-direction:column;gap:16px;padding:26px;overflow-y:auto}
+.lim-setup{flex:1;display:flex;flex-direction:column;gap:20px;padding:26px;overflow-y:auto}
+.lim-setup-hero{display:flex;align-items:center;gap:14px;padding-bottom:4px}
+.lim-setup .lim-section{gap:7px}
 .lim-setup .lim-profile-head{gap:14px}
 .lim-avatar{width:46px;height:46px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--lim-accent-solid);color:var(--lim-on-accent);font-size:15px;font-weight:700}
 .lim-setup-title{font-size:16px;font-weight:650}
