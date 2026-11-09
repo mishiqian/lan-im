@@ -167,10 +167,25 @@ export class HostRuntime {
   }
 
   /** 保存枢纽配置并立即重连 */
-  async configureHub(url: string, invite?: string, certPin?: string): Promise<void> {
+  async configureHub(rawUrl: string, invite?: string, certPin?: string): Promise<void> {
+    // 支持“一个地址搞定”：ws://host:port/hlp?invite=XXXX
+    let url = rawUrl.trim()
+    let inviteFromUrl = ''
+    if (url !== '') {
+      try {
+        const parsed = new URL(url)
+        const fromQuery = parsed.searchParams.get('invite')
+        if (fromQuery !== null && fromQuery !== '') {
+          inviteFromUrl = fromQuery
+          parsed.searchParams.delete('invite')
+          url = parsed.toString()
+        }
+      } catch { /* 非法 URL 交给连接时报错 */ }
+    }
+    const finalInvite = invite === undefined || invite === '' ? inviteFromUrl : invite
     this.hubConfig = url === '' ? undefined : {
       url,
-      ...(invite === undefined || invite === '' ? {} : { invite }),
+      ...(finalInvite === undefined || finalInvite === '' ? {} : { invite: finalInvite }),
       ...(certPin === undefined || certPin === '' ? {} : { certPin }),
     }
     const config = await this.storage.readConfig()

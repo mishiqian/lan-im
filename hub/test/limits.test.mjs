@@ -141,3 +141,35 @@ test('管理接口需要令牌；管理页带令牌可打开', { timeout: 8000 }
 
   await hub.close()
 })
+
+test('邀请码可以放在连接 URL 里', { timeout: 10000 }, async () => {
+  const hub = createHub({ hubId: 'test-hub', invites: ['URL-CODE'] })
+  const { port } = await hub.listen(0, '127.0.0.1')
+  const id = identity(7)
+
+  const viaUrl = await new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/hlp?invite=URL-CODE`)
+    const frames = []
+    const nonce = randomBytes(4).toString('hex')
+    ws.on('open', () => ws.send(JSON.stringify({
+      t: 'hello', v: 1, nodeId: 'n-url', account: 'frank', keyId: id.keyId,
+      pubkey: id.pubkey, prekey: id.prekey, prekeySig: id.prekeySig,
+      nonce, ts: Date.now(), caps: { min: 1, max: 1, features: [] },
+    })))
+    ws.on('message', (raw) => {
+      const frame = JSON.parse(String(raw))
+      frames.push(frame)
+      if (frame.t === 'challenge') {
+        const ts = Date.now()
+        const transcript = handshakeTranscript({
+          hubId: 'test-hub', nodeId: 'n-url', keyId: id.keyId, clientNonce: nonce, hubNonce: frame.hubNonce, ts,
+        })
+        ws.send(JSON.stringify({ t: 'auth', v: 1, keyId: id.keyId, ts, sig: b64u(sign(null, transcript, id.ed)) }))
+      }
+      if (frame.t === 'ready' || frame.t === 'hub/error') resolve(frames)
+    })
+    ws.on('error', reject)
+  })
+  assert.ok(viaUrl.some((f) => f.t === 'ready'), 'URL 里的邀请码应被接受')
+  await hub.close()
+})

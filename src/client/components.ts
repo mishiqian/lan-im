@@ -312,7 +312,7 @@ export function ProfileCenter(props: {
         React.createElement('label', null, '通信枢纽'),
         React.createElement('div', { className: 'lim-row' },
           React.createElement('input', {
-            className: 'lim-input', value: hubUrl, placeholder: 'ws://192.168.1.20:8787/hlp',
+            className: 'lim-input', value: hubUrl, placeholder: 'ws://192.168.1.20:8787/hlp?invite=XXXX 或分开填',
             onChange: (e: any) => setHubUrl(e.target.value),
           }),
           React.createElement('button', {
@@ -322,7 +322,7 @@ export function ProfileCenter(props: {
         ),
         React.createElement('div', { className: 'lim-row' },
           React.createElement('input', {
-            className: 'lim-input', value: hubInvite, placeholder: '邀请码（首次连接需要）',
+            className: 'lim-input', value: hubInvite, placeholder: '邀请码（已写在地址里可留空）',
             onChange: (e: any) => setHubInvite(e.target.value),
           }),
         ),

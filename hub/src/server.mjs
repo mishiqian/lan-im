@@ -262,7 +262,7 @@ export function createHub(options = {}) {
       return ws.close(1008, 'blocked')
     }
     if (invites.size > 0 && !nodes.has(frame.keyId)) {
-      const code = String(frame.invite ?? '')
+      const code = String(frame.invite ?? '') || String(session.urlInvite ?? '')
       const slot = invites.get(code)
       if (slot === undefined || slot.remaining <= 0) {
         send(ws, errorFrame(ERR.INVITE_INVALID, '邀请码无效'))
@@ -316,8 +316,13 @@ export function createHub(options = {}) {
     send(ws, { t: 'challenge', v: PROTOCOL_VERSION, hubId: opts.hubId, hubNonce: session.hubNonce, ts: Date.now() })
   }
 
-  const onConnection = (ws) => {
-    const session = { authed: false }
+  const onConnection = (ws, req) => {
+    // 邀请码也可以直接放在连接地址里：ws://host:port/hlp?invite=XXXX
+    let urlInvite
+    try {
+      urlInvite = new URL(String(req?.url ?? '/'), 'http://placeholder').searchParams.get('invite') ?? undefined
+    } catch { urlInvite = undefined }
+    const session = { authed: false, urlInvite }
     ws.on('message', (raw) => {
       const text = Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw)
       if (Buffer.byteLength(text, 'utf8') > opts.frameBytes) {
