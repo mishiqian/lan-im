@@ -21,6 +21,7 @@ export class ClientBridge {
         messages: this.runtime.messageStore.messages,
         files: [...this.runtime.messageStore.files.values()],
         sharedFiles: this.runtime.sharedFileStore.list(),
+        hub: this.runtime.hubStatus(),
         log: this.runtime.clients.log,
       })
 

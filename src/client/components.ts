@@ -264,6 +264,7 @@ export function ProfileCenter(props: {
   onClose: () => void
 }): React.ReactElement {
   const self = props.self
+  const [tab, setTab] = React.useState<'account' | 'hub' | 'security'>('account')
   const [nameDraft, setNameDraft] = React.useState(self.name)
   const [pskDraft, setPskDraft] = React.useState('')
   const [showPsk, setShowPsk] = React.useState(false)
@@ -277,11 +278,11 @@ export function ProfileCenter(props: {
   React.useEffect(() => { setNameDraft(self.name) }, [self.name])
   React.useEffect(() => { setHubUrl(props.hub.url) }, [props.hub.url])
 
-  const copy = async (kind: 'account' | 'node', text: string): Promise<void> => {
+  const copy = async (kind: string, text: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(kind)
-      window.setTimeout(() => setCopied((v) => v === kind ? null : v), 1200)
+      window.setTimeout(() => setCopied((v) => (v === kind ? null : v)), 1200)
     } catch {
       try {
         const ta = document.createElement('textarea')
@@ -291,13 +292,146 @@ export function ProfileCenter(props: {
         document.execCommand('copy')
         ta.remove()
         setCopied(kind)
-        window.setTimeout(() => setCopied((v) => v === kind ? null : v), 1200)
+        window.setTimeout(() => setCopied((v) => (v === kind ? null : v)), 1200)
       } catch { /* 忽略 */ }
     }
   }
 
   const initials = (self.name || self.accountId || '?').trim().slice(0, 2).toUpperCase()
-  const shortNode = self.nodeId.length > 12 ? `${self.nodeId.slice(0, 6)}…${self.nodeId.slice(-4)}` : self.nodeId
+  const hubState = props.hub.state
+  const hubConfigured = props.hub.url.trim() !== ''
+  const hubText = hubState === 'online'
+    ? `已连接 · ${hubLabel(props.hub)}`
+    : hubState === 'connecting'
+      ? '正在连接…'
+      : hubConfigured ? '未连接' : '尚未配置枢纽'
+
+  const kv = (label: string, value: string, kind: string): React.ReactElement =>
+    React.createElement('div', { className: 'lim-kv' },
+      React.createElement('span', { className: 'lim-kv-label' }, label),
+      React.createElement('code', { className: 'lim-kv-value', title: value }, value),
+      React.createElement('button', {
+        className: 'lim-copybtn', onClick: () => { void copy(kind, value) },
+        'aria-label': `复制${label}`,
+      }, copied === kind ? '已复制' : '复制'),
+    )
+
+  const accountTab = React.createElement(React.Fragment, null,
+    React.createElement('div', { className: 'lim-section' },
+      React.createElement('div', { className: 'lim-section-title' }, '显示名'),
+      React.createElement('div', { className: 'lim-row' },
+        React.createElement('input', {
+          className: 'lim-input', value: nameDraft, maxLength: 32, placeholder: '输入显示名',
+          onChange: (e: any) => setNameDraft(e.target.value),
+          onKeyDown: (e: any) => { if (e.key === 'Enter') props.onSetName(nameDraft.trim() || self.accountId) },
+        }),
+        React.createElement('button', { className: 'lim-send', onClick: () => props.onSetName(nameDraft.trim() || self.accountId) }, '保存'),
+      ),
+      React.createElement('div', { className: 'lim-section-hint' }, '别人在会话列表里看到的名字，随时可改。'),
+    ),
+    React.createElement('div', { className: 'lim-section' },
+      React.createElement('div', { className: 'lim-section-title' }, '身份'),
+      kv('账号 ID', self.accountId || '未设置', 'account'),
+      kv('节点 ID', self.nodeId, 'node'),
+      React.createElement('div', { className: 'lim-section-hint' }, '账号 ID 用于别人找到你；节点 ID 标识这台设备。'),
+    ),
+    React.createElement('div', { className: 'lim-section' },
+      React.createElement('div', { className: 'lim-section-title' }, '当前状态'),
+      React.createElement('div', { className: 'lim-profile-stats' },
+        React.createElement('div', { className: 'lim-stat' }, React.createElement('b', null, String(props.peersCount)), React.createElement('span', null, '在线账号')),
+        React.createElement('div', { className: 'lim-stat' }, React.createElement('b', null, String(props.channelsCount)), React.createElement('span', null, '已加入频道')),
+        React.createElement('div', { className: 'lim-stat' },
+          React.createElement('b', { className: 'lim-stat-text' }, props.connected ? '正常' : '重连中'),
+          React.createElement('span', null, '与宿主连接')),
+      ),
+    ),
+  )
+
+  const hubTab = React.createElement(React.Fragment, null,
+    React.createElement('div', { className: 'lim-section' },
+      React.createElement('div', { className: 'lim-hub-state ' + (hubState === 'online' ? 'on' : hubConfigured ? 'off' : 'idle') },
+        React.createElement('span', { className: 'lim-hub-dot' }),
+        React.createElement('span', null, hubText),
+      ),
+      props.hub.lastError !== undefined && hubState !== 'online'
+        ? React.createElement('div', { className: 'lim-hub-error' }, props.hub.lastError)
+        : null,
+    ),
+    React.createElement('div', { className: 'lim-section' },
+      React.createElement('div', { className: 'lim-section-title' }, '枢纽地址'),
+      React.createElement('input', {
+        className: 'lim-input', value: hubUrl, placeholder: 'wss://hub.example.com/hlp',
+        onChange: (e: any) => setHubUrl(e.target.value),
+      }),
+      React.createElement('div', { className: 'lim-section-title' }, '邀请码'),
+      React.createElement('input', {
+        className: 'lim-input', value: hubInvite, placeholder: '地址里带了可留空',
+        onChange: (e: any) => setHubInvite(e.target.value),
+      }),
+      React.createElement('div', { className: 'lim-row' },
+        React.createElement('button', {
+          className: 'lim-send', disabled: hubBusy,
+          onClick: () => { setHubBusy(true); props.onConfigureHub(hubUrl.trim(), hubInvite.trim()); window.setTimeout(() => setHubBusy(false), 1500) },
+        }, '连接'),
+        React.createElement('button', {
+          className: 'lim-mini', disabled: hubBusy,
+          onClick: () => { setHubBusy(true); props.onStartLocalHub(); window.setTimeout(() => setHubBusy(false), 4000) },
+        }, props.hub.managed === true ? '重启本机枢纽' : '在本机启动枢纽'),
+        props.hub.managed === true
+          ? React.createElement('button', { className: 'lim-mini', onClick: props.onStopLocalHub }, '停止')
+          : null,
+      ),
+    ),
+    props.hub.observedPin !== undefined && hubState !== 'online'
+      ? React.createElement('div', { className: 'lim-section' },
+          React.createElement('div', { className: 'lim-section-title' }, '证书指纹'),
+          React.createElement('div', { className: 'lim-row' },
+            React.createElement('code', { className: 'lim-kv-value' }, `${props.hub.observedPin.slice(0, 32)}…`),
+            React.createElement('button', { className: 'lim-mini', onClick: props.onTrustHubPin }, '信任此证书'),
+          ),
+          React.createElement('div', { className: 'lim-section-hint' }, '自签证书会显示指纹；确认一次后会被记住。'),
+        )
+      : null,
+    React.createElement('div', { className: 'lim-section-hint' },
+      '所有通信（包括同一局域网）都经枢纽转发；内容端到端加密，枢纽只看到密文。'),
+  )
+
+  const securityTab = React.createElement(React.Fragment, null,
+    React.createElement('div', { className: 'lim-section' },
+      React.createElement('div', { className: 'lim-section-title' }, '本机密码'),
+      React.createElement('div', { className: 'lim-row' },
+        React.createElement('input', {
+          className: 'lim-input', type: showPassword ? 'text' : 'password', value: passwordDraft,
+          placeholder: self.hasPassword ? '输入新密码覆盖，留空清除' : '设置后可防止他人打开聊天',
+          onChange: (e: any) => setPasswordDraft(e.target.value),
+          onKeyDown: (e: any) => { if (e.key === 'Enter') { props.onSetupPassword(passwordDraft); setPasswordDraft('') } },
+        }),
+        React.createElement('button', { className: 'lim-mini', onClick: () => setShowPassword((v) => !v) }, showPassword ? '隐藏' : '显示'),
+        React.createElement('button', { className: 'lim-send', onClick: () => { props.onSetupPassword(passwordDraft); setPasswordDraft('') } }, '保存'),
+      ),
+      React.createElement('div', { className: 'lim-section-hint' }, self.hasPassword ? '已设置。仅作用于本机，不参与网络身份。' : '尚未设置。'),
+    ),
+    React.createElement('div', { className: 'lim-section' },
+      React.createElement('div', { className: 'lim-section-title' }, '共享密钥 PSK'),
+      React.createElement('div', { className: 'lim-row' },
+        React.createElement('input', {
+          className: 'lim-input', type: showPsk ? 'text' : 'password', value: pskDraft,
+          placeholder: self.hasPsk ? '已设置（输入新值覆盖，留空清除）' : '设置后仅同密钥节点可互联',
+          onChange: (e: any) => setPskDraft(e.target.value),
+          onKeyDown: (e: any) => { if (e.key === 'Enter') { props.onSetupPsk(pskDraft); setPskDraft('') } },
+        }),
+        React.createElement('button', { className: 'lim-mini', onClick: () => setShowPsk((v) => !v) }, showPsk ? '隐藏' : '显示'),
+        React.createElement('button', { className: 'lim-send', onClick: () => { props.onSetupPsk(pskDraft); setPskDraft('') } }, '保存'),
+      ),
+      React.createElement('div', { className: 'lim-section-hint' }, '旧版的节点间信任参数；使用枢纽时以枢纽的邀请码为准。'),
+    ),
+  )
+
+  const tabButton = (id: 'account' | 'hub' | 'security', label: string): React.ReactElement =>
+    React.createElement('button', {
+      role: 'tab', 'aria-selected': tab === id, className: tab === id ? 'on' : '',
+      onClick: () => setTab(id),
+    }, label)
 
   return React.createElement('div', { className: 'lim-modal' },
     React.createElement('div', { className: 'lim-modal-box lim-profile' },
@@ -307,119 +441,23 @@ export function ProfileCenter(props: {
           React.createElement('div', { className: 'lim-profile-name' }, self.name || self.accountId || '未设置'),
           React.createElement('div', { className: 'lim-profile-account' }, `@${self.accountId || '未设置账号'}`),
         ),
-        React.createElement('button', { className: 'lim-iconbtn', title: '关闭', 'aria-label': '关闭', onClick: props.onClose }, React.createElement(Icon, { name: 'close' })),
+        React.createElement('button', { className: 'lim-iconbtn', title: '关闭', 'aria-label': '关闭', onClick: props.onClose },
+          React.createElement(Icon, { name: 'close' })),
       ),
 
-      React.createElement('div', { className: 'lim-profile-status' },
-        React.createElement('span', { className: 'lim-pill' + (props.connected ? ' on' : '') },
-          React.createElement(Icon, { name: 'dot', size: 12 }), props.connected ? '宿主已连接' : '宿主重连中'),
-        React.createElement('span', { className: 'lim-pill' + (self.hasPsk ? ' on' : '') }, self.hasPsk ? '共享密钥已启用' : '共享密钥未启用'),
-        React.createElement('span', { className: 'lim-pill' + (self.hasPassword ? ' on' : '') }, self.hasPassword ? '本机密码已设置' : '本机密码未设置'),
+      React.createElement('div', { className: 'lim-profile-tabs', role: 'tablist' },
+        tabButton('account', '账号'),
+        tabButton('hub', '通信'),
+        tabButton('security', '安全'),
       ),
 
-      React.createElement('div', { className: 'lim-profile-stats' },
-        React.createElement('div', { className: 'lim-stat' }, React.createElement('b', null, String(props.peersCount)), React.createElement('span', null, '在线账号')),
-        React.createElement('div', { className: 'lim-stat' }, React.createElement('b', null, String(props.channelsCount)), React.createElement('span', null, '已加入频道')),
-        React.createElement('div', { className: 'lim-stat' }, React.createElement('b', null, self.wsPort > 0 ? `${self.ip}:${self.wsPort}` : self.ip), React.createElement('span', null, '本机地址')),
+      React.createElement('div', { className: 'lim-profile-body' },
+        tab === 'account' ? accountTab : tab === 'hub' ? hubTab : securityTab,
       ),
 
-      React.createElement('div', { className: 'lim-field' },
-        React.createElement('label', null, '通信枢纽'),
-        React.createElement('div', { className: 'lim-row' },
-          React.createElement('input', {
-            className: 'lim-input', value: hubUrl, placeholder: 'wss://hub.example.com/hlp',
-            onChange: (e: any) => setHubUrl(e.target.value),
-          }),
-          React.createElement('button', {
-            className: 'lim-send', disabled: hubBusy,
-            onClick: () => { setHubBusy(true); props.onConfigureHub(hubUrl.trim(), hubInvite.trim()); window.setTimeout(() => setHubBusy(false), 1500) },
-          }, '连接'),
-        ),
-        React.createElement('div', { className: 'lim-row' },
-          React.createElement('input', {
-            className: 'lim-input', value: hubInvite, placeholder: '邀请码（地址里带了可留空）',
-            onChange: (e: any) => setHubInvite(e.target.value),
-          }),
-        ),
-        React.createElement('div', { className: 'lim-setup-hint' },
-          props.hub.state === 'online'
-            ? `● 已连接 · ${hubLabel(props.hub)}`
-            : props.hub.state === 'connecting'
-              ? '○ 正在连接…'
-              : `○ 未连接${props.hub.lastError !== undefined ? ` · ${props.hub.lastError}` : ''}`),
-        React.createElement('div', { className: 'lim-row' },
-          React.createElement('button', {
-            className: 'lim-mini', disabled: hubBusy,
-            onClick: () => { setHubBusy(true); props.onStartLocalHub(); window.setTimeout(() => setHubBusy(false), 4000) },
-          }, props.hub.managed === true ? '重启本机枢纽' : '在本机启动枢纽'),
-          props.hub.managed === true
-            ? React.createElement('button', { className: 'lim-mini', onClick: props.onStopLocalHub }, '停止本机枢纽')
-            : null,
-        ),
-        props.hub.observedPin !== undefined && props.hub.state !== 'online'
-          ? React.createElement('div', { className: 'lim-row' },
-              React.createElement('div', { className: 'lim-setup-hint' }, `证书指纹 ${props.hub.observedPin.slice(0, 16)}…`),
-              React.createElement('button', { className: 'lim-mini', onClick: props.onTrustHubPin }, '信任此证书'),
-            )
-          : null,
-        React.createElement('div', { className: 'lim-setup-hint' }, '所有人（包括同一局域网）都经枢纽通信；内容端到端加密，枢纽只转发密文。'),
-      ),
-
-      React.createElement('div', { className: 'lim-field' },
-        React.createElement('label', null, '显示名'),
-        React.createElement('div', { className: 'lim-row' },
-          React.createElement('input', { className: 'lim-input', value: nameDraft, maxLength: 32, placeholder: '输入显示名', onChange: (e: any) => setNameDraft(e.target.value), onKeyDown: (e: any) => { if (e.key === 'Enter') props.onSetName(nameDraft.trim() || self.accountId) } }),
-          React.createElement('button', { className: 'lim-send', onClick: () => props.onSetName(nameDraft.trim() || self.accountId) }, '保存'),
-        ),
-      ),
-
-      React.createElement('div', { className: 'lim-field' },
-        React.createElement('label', null, '账号 ID'),
-        React.createElement('div', { className: 'lim-row' },
-          React.createElement('input', { className: 'lim-input', value: self.accountId, readOnly: true }),
-          React.createElement('button', { className: 'lim-mini', onClick: () => { void copy('account', self.accountId) } }, copied === 'account' ? '已复制' : '复制'),
-        ),
-      ),
-
-      React.createElement('div', { className: 'lim-field' },
-        React.createElement('label', null, '节点 ID'),
-        React.createElement('div', { className: 'lim-row' },
-          React.createElement('input', { className: 'lim-input', value: self.nodeId, readOnly: true, title: self.nodeId }),
-          React.createElement('button', { className: 'lim-mini', onClick: () => { void copy('node', self.nodeId) } }, copied === 'node' ? '已复制' : '复制'),
-        ),
-      ),
-
-      React.createElement('div', { className: 'lim-field' },
-        React.createElement('label', null, '本机密码'),
-        React.createElement('div', { className: 'lim-row' },
-          React.createElement('input', {
-            className: 'lim-input', type: showPassword ? 'text' : 'password', value: passwordDraft,
-            placeholder: self.hasPassword ? '输入新密码覆盖，留空清除密码' : '设置本机密码（可选）',
-            onChange: (e: any) => setPasswordDraft(e.target.value),
-            onKeyDown: (e: any) => { if (e.key === 'Enter') { props.onSetupPassword(passwordDraft); setPasswordDraft('') } },
-          }),
-          React.createElement('button', { className: 'lim-mini', onClick: () => setShowPassword((v) => !v) }, showPassword ? '隐藏' : '显示'),
-          React.createElement('button', { className: 'lim-send', onClick: () => { props.onSetupPassword(passwordDraft); setPasswordDraft('') } }, '保存'),
-        ),
-      ),
-
-      React.createElement('div', { className: 'lim-field' },
-        React.createElement('label', null, '共享密钥（PSK）'),
-        React.createElement('div', { className: 'lim-row' },
-          React.createElement('input', {
-            className: 'lim-input', type: showPsk ? 'text' : 'password', value: pskDraft,
-            placeholder: self.hasPsk ? '已设置（输入新值覆盖，留空清除）' : '设置后仅同密钥节点可互联',
-            onChange: (e: any) => setPskDraft(e.target.value),
-            onKeyDown: (e: any) => { if (e.key === 'Enter') { props.onSetupPsk(pskDraft); setPskDraft('') } },
-          }),
-          React.createElement('button', { className: 'lim-mini', onClick: () => setShowPsk((v) => !v) }, showPsk ? '隐藏' : '显示'),
-          React.createElement('button', { className: 'lim-send', onClick: () => { props.onSetupPsk(pskDraft); setPskDraft('') } }, '保存'),
-        ),
-        React.createElement('div', { className: 'lim-profile-hint' }, 'PSK 只影响节点间信任；账号密码仅用于本机。'),
-      ),
-
-      React.createElement('div', { className: 'lim-modal-actions' },
-        React.createElement('button', { className: 'lim-send', onClick: props.onClose }, '完成'),
+      React.createElement('div', { className: 'lim-profile-foot' },
+        React.createElement('span', { className: 'lim-profile-version' }, `lan-im ${__LANIM_VERSION__}`),
+        React.createElement('button', { className: 'lim-send ghost', onClick: props.onClose }, '完成'),
       ),
     ),
   )

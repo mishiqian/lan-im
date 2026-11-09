@@ -183,17 +183,42 @@ export const CSS = `
 .lim-field label{font-size:12px;font-weight:500;color:var(--lim-muted)}
 
 /* ---------- 个人中心 ---------- */
-.lim-profile{width:100%;display:flex;flex-direction:column;gap:16px;padding:20px}
-.lim-profile-head{display:flex;align-items:center;gap:14px}
+.lim-profile{width:420px;max-width:calc(100% - 24px);height:min(560px,calc(100% - 32px));padding:0;gap:0;overflow:hidden}
+.lim-profile-head{display:flex;align-items:center;gap:14px;padding:20px 20px 14px}
 .lim-profile-id{flex:1;min-width:0}
 .lim-profile-name{font-size:17px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lim-profile-account{font-size:12px;color:var(--lim-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lim-profile-tabs{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid var(--lim-border)}
+.lim-profile-tabs button{position:relative;height:34px;padding:0 12px;border:none;background:none;color:var(--lim-muted);font:inherit;font-size:13px;cursor:pointer;border-radius:8px 8px 0 0}
+.lim-profile-tabs button:hover{color:var(--lim-fg);background:var(--lim-hover)}
+.lim-profile-tabs button.on{color:var(--lim-fg);font-weight:600}
+.lim-profile-tabs button.on::after{content:'';position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:var(--lim-accent)}
+.lim-profile-tabs button:focus-visible{outline:2px solid var(--lim-accent);outline-offset:-2px}
+.lim-profile-body{flex:1;min-height:0;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:18px}
+.lim-profile-foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 20px;border-top:1px solid var(--lim-border);background:color-mix(in srgb,var(--lim-bg) 92%,#fff 3%)}
+.lim-profile-version{font-size:11px;color:var(--lim-faint)}
+.lim-section{display:flex;flex-direction:column;gap:8px}
+.lim-section-title{font-size:12px;font-weight:600;color:var(--lim-fg)}
+.lim-section-hint{font-size:11.5px;color:var(--lim-faint);line-height:1.65}
+.lim-kv{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;background:var(--lim-surface);min-width:0}
+.lim-kv-label{flex:none;font-size:11.5px;color:var(--lim-muted);min-width:56px}
+.lim-kv-value{flex:1;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lim-fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lim-copybtn{flex:none;border:none;background:none;color:var(--lim-accent);font:inherit;font-size:11.5px;cursor:pointer;padding:2px 4px;border-radius:5px}
+.lim-copybtn:hover{background:var(--lim-accent-weak)}
+.lim-copybtn:focus-visible{outline:2px solid var(--lim-accent);outline-offset:1px}
+.lim-hub-state{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:var(--lim-surface);font-size:13px;color:var(--lim-muted)}
+.lim-hub-state.on{background:color-mix(in srgb,var(--lim-ok) 12%,transparent);color:var(--lim-ok)}
+.lim-hub-state.off{background:color-mix(in srgb,var(--lim-danger) 10%,transparent);color:var(--lim-danger)}
+.lim-hub-state.idle{background:var(--lim-surface);color:var(--lim-muted)}
+.lim-hub-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.lim-hub-error{font-size:11.5px;color:var(--lim-danger);line-height:1.6;word-break:break-word}
 .lim-profile-status{display:flex;gap:6px;flex-wrap:wrap}
 .lim-pill{font-size:11.5px;padding:4px 9px;border-radius:999px;background:var(--lim-hover);color:var(--lim-muted)}
 .lim-pill.on{background:color-mix(in srgb,var(--lim-ok) 14%,transparent);color:var(--lim-ok);font-weight:600}
 .lim-profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .lim-stat{display:flex;flex-direction:column;gap:3px;padding:11px;border-radius:11px;background:var(--lim-surface);min-width:0}
 .lim-stat b{font-size:15px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lim-stat b.lim-stat-text{font-size:13.5px}
 .lim-stat span{font-size:11px;color:var(--lim-faint)}
 .lim-row{display:flex;align-items:center;gap:8px}
 .lim-mini{border:1px solid var(--lim-border);background:transparent;color:var(--lim-muted);font:inherit;font-size:11.5px;padding:7px 11px;border-radius:9px;cursor:pointer;white-space:nowrap}
