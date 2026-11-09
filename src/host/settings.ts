@@ -28,7 +28,6 @@ export class Settings {
     }
     // 账号变了要重新握手：枢纽的 hello 里带 account
     this.runtime.startHub()
-    this.runtime.discovery.republish()
     this.runtime.clients.self(self)
     this.runtime.self.hasPassword = typeof password === 'string' && password !== ''
     this.runtime.clients.logEvent(`账号已设置：${u}`)
@@ -63,7 +62,6 @@ export class Settings {
     await this.runtime.saveConfig()
     // 账号变了要重新握手：枢纽的 hello 里带 account
     this.runtime.startHub()
-    this.runtime.discovery.republish()
     this.runtime.clients.self(this.runtime.self)
     this.runtime.clients.logEvent(`已改名为 ${trimmed}`)
   }
@@ -72,12 +70,11 @@ export class Settings {
     this.runtime.psk = String(value ?? '')
     this.runtime.self.hasPsk = this.runtime.psk !== ''
     await this.runtime.saveConfig()
-    this.runtime.peerNetwork.clearPeers()
+    this.runtime.transport.clearPeers()
     // 账号变了要重新握手：枢纽的 hello 里带 account
     this.runtime.startHub()
-    this.runtime.discovery.republish()
     this.runtime.clients.self(this.runtime.self)
-    this.runtime.clients.peers(this.runtime.peerNetwork.peersSnapshot())
+    this.runtime.clients.peers(this.runtime.transport.peersSnapshot())
     this.runtime.clients.logEvent(this.runtime.psk === '' ? '已清除共享密钥（开放信任）' : '已设置共享密钥')
   }
 }

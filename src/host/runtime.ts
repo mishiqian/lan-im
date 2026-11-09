@@ -6,8 +6,6 @@ import { ClientHub } from './client-hub.ts'
 import { ChannelRegistry } from './channel-registry.ts'
 import { MessageStore } from './message-store.ts'
 import { Outbox } from './outbox.ts'
-import { PeerNetwork } from './peer-network.ts'
-import { Discovery } from './discovery.ts'
 import { Messaging } from './messaging.ts'
 import { FileTransfer } from './file-transfer.ts'
 import { SharedFileStore } from './shared-file-store.ts'
@@ -16,6 +14,7 @@ import { HttpGateway } from './http-gateway.ts'
 import { IdentityStore, TrustStore, handshakePayload, type IdentityFile } from './identity.ts'
 import { HubClient, type HubStatus } from './hub-client.ts'
 import { HubLauncher } from './hub-launcher.ts'
+import { Transport } from './transport.ts'
 import { open as openEnvelope, seal as sealEnvelope } from './envelope.ts'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -52,8 +51,7 @@ export class HostRuntime {
   readonly outbox = new Outbox(this)
   readonly fileTransfer = new FileTransfer(this)
   readonly sharedFileStore = new SharedFileStore(this)
-  readonly peerNetwork = new PeerNetwork(this)
-  readonly discovery = new Discovery(this)
+  readonly transport = new Transport(this)
   readonly messaging = new Messaging(this)
   readonly settings = new Settings(this)
   readonly pluginVersion = PLUGIN_VERSION
@@ -62,8 +60,8 @@ export class HostRuntime {
   private hubClient: HubClient | undefined
   private hubConfig: { url: string; invite?: string } | undefined
   /** account → 对端公钥目录（来自 lookup/presence） */
-  private readonly hubDir = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string }>()
-  private readonly hubByKeyId = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string }>()
+  private readonly hubDir = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string; seen?: number }>()
+  private readonly hubByKeyId = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string; seen?: number }>()
   private readonly hubLookups = new Map<string, (entry: any) => void>()
   /** LEP 发送序列号（持久化） */
   private hubSeq = 0
@@ -106,13 +104,6 @@ export class HostRuntime {
     await this.outbox.load()
     if (this.stopped) return
 
-    this.self.wsPort = await this.peerNetwork.startPeerServer()
-    if (this.stopped) {
-      this.peerNetwork.stop()
-      return
-    }
-    if (this.self.wsPort > 0) this.discovery.start()
-    this.peerNetwork.startSweep()
     this.clients.logEvent(this.self.accountId !== '' ? `本机账号 ${this.self.name} 上线 (${this.self.ip})` : `本机上线 (${this.self.ip})，等待设置账号`)
     this.startHub()
   }
@@ -194,12 +185,19 @@ export class HostRuntime {
       return
     }
     if (frame.t === 'presence') {
-      // 目录只做缓存；真正的公钥仍以 lookup 为准
+      const keyId = String(frame.keyId ?? '')
+      const account = String(frame.account ?? '')
+      if (keyId === '' || account === '') return
+      const prev = this.hubByKeyId.get(keyId)
+      this.rememberPeer({ account, keyId, pubkey: prev?.pubkey ?? '', prekey: prev?.prekey ?? '' })
+      const entry = this.hubByKeyId.get(keyId)
+      if (entry !== undefined) entry.seen = Date.now()
+      this.clients.peers(this.hubPeers())
       return
     }
   }
 
-  private rememberPeer(entry: { account: string; keyId: string; pubkey: string; prekey: string }): void {
+  private rememberPeer(entry: { account: string; keyId: string; pubkey: string; prekey: string; seen?: number }): void {
     if (entry.account !== '') this.hubDir.set(entry.account, entry)
     this.hubByKeyId.set(entry.keyId, entry)
   }
@@ -221,7 +219,7 @@ export class HostRuntime {
   }
 
   /** 经枢纽发一条应用层消息（LEP 封装） */
-  async sendViaHub(toAccount: string, kind: 'text' | 'channel' | 'receipt' | 'presence', payload: unknown): Promise<boolean> {
+  async sendViaHub(toAccount: string, kind: 'text' | 'channel' | 'receipt' | 'presence' | 'file-meta' | 'file-chunk', payload: unknown): Promise<boolean> {
     const client = this.hubClient
     const identity = this.identityData
     if (client === undefined || identity === undefined || client.getStatus().state !== 'online') return false
@@ -273,7 +271,36 @@ export class HostRuntime {
     }
     let payload: any
     try { payload = JSON.parse(opened.plaintext) } catch { return }
-    this.receiveRemoteMessage(payload)
+    if (payload?.t === 'msg') this.receiveRemoteMessage(payload)
+    else this.transport.dispatch(payload)
+  }
+
+  /** 已知对端（给 UI 与 transport 用） */
+  hubPeers(): Array<{ accountId: string; name: string; nodeId: string; ip: string; wsPort: number; lastSeen: number; keyId?: string; trusted?: boolean }> {
+    return [...this.hubDir.values()].map((entry) => ({
+      accountId: entry.account,
+      name: entry.account,
+      nodeId: entry.keyId,
+      ip: '',
+      wsPort: 0,
+      lastSeen: entry.seen ?? Date.now(),
+      keyId: entry.keyId,
+      trusted: true,
+    }))
+  }
+
+  hubPeerByKeyId(keyId: string): { account: string; keyId: string } | undefined {
+    const entry = this.hubByKeyId.get(keyId)
+    return entry === undefined ? undefined : { account: entry.account, keyId: entry.keyId }
+  }
+
+  /** 兼容旧 deliverToAccount：把待发消息标记为已投递 */
+  hubMarkDelivered(account: string): void {
+    for (const message of this.messageStore.messages) {
+      if (message.to === account && message.local && message.status !== 'delivered') {
+        this.messageStore.markDelivered(message.id)
+      }
+    }
   }
 
   /** 统一的远端消息入口：直连与枢纽都走这里 */
@@ -294,8 +321,6 @@ export class HostRuntime {
   stop(): void {
     this.stopped = true
     this.hubLauncher.stop()
-    this.peerNetwork.stop()
-    this.discovery.stop()
     this.gateway.closeClients()
     this.clients.closeAll()
   }
@@ -320,28 +345,23 @@ export class HostRuntime {
     const { accountId, nodeId, pubkey, keyId, ts, sig } = input
     if (typeof pubkey !== 'string' || typeof keyId !== 'string' || typeof ts !== 'number' || typeof sig !== 'string') {
       this.clients.logEvent(`@${accountId} 未提供身份（旧版本），本次连接标记为未验证`)
-      this.peerNetwork.applyIdentity(accountId, undefined, false)
       return false
     }
     const ok = IdentityStore.verifyHandshake({ nodeId, accountId, ts, publicKey: pubkey, keyId, sig })
     if (!ok) {
       this.clients.logEvent(`拒绝 @${accountId} 的身份：签名无效或时间戳过期`)
-      this.peerNetwork.applyIdentity(accountId, keyId, false)
       return false
     }
     const outcome = await this.trust.observe(accountId, keyId, pubkey)
     if (outcome === 'new') {
       this.clients.logEvent(`首次见到 @${accountId}，已钉住身份 ${keyId}`)
-      this.peerNetwork.applyIdentity(accountId, keyId, true)
       return true
     }
     if (outcome === 'conflict') {
       const pinned = this.trust.get(accountId)?.keyId ?? '?'
       this.clients.logEvent(`身份冲突：@${accountId} 使用了新的公钥（钉住 ${pinned}，本次 ${keyId}），可能有人冒充`)
-      this.peerNetwork.applyIdentity(accountId, pinned, false)
       return false
     }
-    this.peerNetwork.applyIdentity(accountId, keyId, true)
     return true
   }
 

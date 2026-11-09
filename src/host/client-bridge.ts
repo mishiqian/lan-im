@@ -16,7 +16,7 @@ export class ClientBridge {
       this.runtime.clients.send(ws, {
         t: 'snapshot',
         self: this.runtime.self,
-        peers: this.runtime.peerNetwork.peersSnapshot(),
+        peers: this.runtime.transport.peersSnapshot(),
         channels: this.runtime.channelRegistry.list(),
         messages: this.runtime.messageStore.messages,
         files: [...this.runtime.messageStore.files.values()],

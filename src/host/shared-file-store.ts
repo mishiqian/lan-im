@@ -148,7 +148,7 @@ export class SharedFileStore {
   private broadcast(wire: any, file: SharedFile): void {
     const audience = this.runtime.channelRegistry.audience(file.channelId)
     if (audience.length === 0) return
-    this.runtime.peerNetwork.broadcastWireToAccounts(wire, audience)
+    this.runtime.transport.broadcastWireToAccounts(wire, audience)
   }
 
   // ── 节点间索引/拉取协议 ────────────────────────────────────────────────────
@@ -200,7 +200,7 @@ export class SharedFileStore {
       const totalChunks = Math.ceil(buf.length / CHUNK_SIZE)
       for (let seq = 0; seq < totalChunks; seq++) {
         const slice = buf.subarray(seq * CHUNK_SIZE, (seq + 1) * CHUNK_SIZE)
-        this.runtime.peerNetwork.sendWire(wire.requesterNodeId, {
+        this.runtime.transport.sendWire(wire.requesterNodeId, {
           t: 'fileData', id: file.id, name: file.name, mime: file.mime, size: file.size,
           sha256: file.sha256, totalChunks, seq, data: slice.toString('base64'),
         })
@@ -244,21 +244,14 @@ export class SharedFileStore {
   }
 
   private triggerFetch(file: SharedFile, id: string): void {
-    const target = this.runtime.peerNetwork.openConnection(file.ownerNodeId)
-    if (target !== undefined) {
-      this.sendFetch(id)
-      return
-    }
-    this.runtime.peerNetwork.ensurePeerConnection(file.ownerNodeId)
+    // 枢纽模式：没有“连接”这个概念，直接按账号发请求；对方离线时由枢纽排队
+    this.sendFetch(id)
     const waitUntil = Date.now() + 8000
     const iv = setInterval(() => {
-      const ws = this.runtime.peerNetwork.openConnection(file.ownerNodeId)
-      if (ws !== undefined) {
+      if (this.pending.get(id) === undefined) { clearInterval(iv); return }
+      if (Date.now() > waitUntil) {
         clearInterval(iv)
-        this.sendFetch(id)
-      } else if (Date.now() > waitUntil) {
-        clearInterval(iv)
-        this.failFetch(id, new Error(`共享文件 owner 离线：${file.ownerAccount || file.ownerNodeId}`))
+        this.failFetch(id, new Error(`共享文件 owner 无响应：${file.ownerAccount || file.ownerNodeId}`))
       }
     }, 250)
   }
@@ -267,7 +260,9 @@ export class SharedFileStore {
     const rec = this.pending.get(id)
     if (rec === undefined) return
     const file = rec.file
-    this.runtime.peerNetwork.sendWire(file.ownerNodeId, {
+    const owner = file.ownerAccount || ''
+    if (owner === '') { this.failFetch(id, new Error('共享文件缺少 owner 账号')); return }
+    void this.runtime.sendViaHub(owner, 'file-meta', {
       t: 'fileFetch', id,
       requesterAccountId: this.runtime.self.accountId,
       requesterNodeId: this.runtime.self.nodeId,

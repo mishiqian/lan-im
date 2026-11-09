@@ -206,7 +206,7 @@ export class HttpGateway {
             json(res, 200, {
               ok: true,
               self: this.runtime.self,
-              peers: this.runtime.peerNetwork.peersSnapshot(),
+              peers: this.runtime.transport.peersSnapshot(),
               channels: this.runtime.channelRegistry.list(),
               messages: this.runtime.messageStore.messages.slice(-HISTORY_LIMIT),
               sharedFiles: this.runtime.sharedFileStore.list(),

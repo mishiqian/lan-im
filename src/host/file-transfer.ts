@@ -92,17 +92,12 @@ export class FileTransfer {
       }
       const targets = up.toType === 'channel'
         ? this.peersForChannel(channelId)
-        : this.runtime.peerNetwork.peersSnapshot().filter((p) => p.accountId === up.to)
+        : this.runtime.transport.peersSnapshot().filter((p) => p.accountId === up.to)
       for (const peer of targets) {
-        const ws = this.runtime.peerNetwork.openConnection(peer.nodeId)
-        if (ws === undefined) {
-          this.runtime.peerNetwork.ensurePeerConnection(peer.nodeId)
-          continue
-        }
-        try { ws.send(JSON.stringify(meta)) } catch { /* 忽略 */ }
+        void this.runtime.sendViaHub(peer.accountId, 'file-meta', meta)
         for (let seq = 0; seq < totalChunks; seq++) {
           const slice = buf.subarray(seq * CHUNK_SIZE, (seq + 1) * CHUNK_SIZE)
-          try { ws.send(JSON.stringify({ t: 'chunk', id, seq, data: slice.toString('base64') })) } catch { /* 忽略 */ }
+          void this.runtime.sendViaHub(peer.accountId, 'file-chunk', { t: 'chunk', id, seq, data: slice.toString('base64') })
         }
       }
       this.runtime.clients.logEvent(`已发送文件 ${up.name} (${(buf.length / 1024).toFixed(0)}KB)`)
@@ -113,9 +108,9 @@ export class FileTransfer {
 
   private peersForChannel(channelId: string): import('../protocol.ts').Peer[] {
     const audience = this.runtime.channelRegistry.audience(channelId)
-    if (audience.includes('*')) return this.runtime.peerNetwork.peersSnapshot()
+    if (audience.includes('*')) return this.runtime.transport.peersSnapshot()
     const wanted = new Set(audience)
-    return this.runtime.peerNetwork.peersSnapshot().filter((p) => wanted.has(p.accountId))
+    return this.runtime.transport.peersSnapshot().filter((p) => wanted.has(p.accountId))
   }
 
   /** 节点间文件帧入口（由 PeerNetwork 分发）。 */

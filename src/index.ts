@@ -1,5 +1,5 @@
 /**
- * 局域网即时通信（lan-im）宿主入口 v5。
+ * 局域网即时通信（lan-im）宿主入口 v6。
  *
  * 该文件只做插件注册与生命周期接线，所有业务逻辑按领域拆分在 src/host/ 下：
  * - protocol.ts        共享协议、常量和类型
@@ -8,8 +8,10 @@
  * - host/channel-registry.ts  频道模型
  * - host/message-store.ts     实时消息窗口 + 历史回放/搜索
  * - host/outbox.ts            私聊离线补发队列
- * - host/peer-network.ts      节点间 WebSocket 连接与 wire 协议
- * - host/discovery.ts         mDNS + UDP 节点发现
+ * - host/hub-client.ts        节点 ↔ 枢纽连接（HLP 握手 / 重连）
+ * - host/envelope.ts          端到端信封（X25519 + AES-GCM）
+ * - host/transport.ts         出站分发（全部经枢纽）
+ * - host/hub-launcher.ts      一键起本机枢纽
  * - host/messaging.ts         发送/撤回/编辑
  * - host/file-transfer.ts     消息附件分片传输
  * - host/shared-file-store.ts 频道共享文件索引 + 按需拉取/缓存
@@ -34,7 +36,7 @@ export function apply(ctx: any): void {
       runtime.stopped = true
       runtime.stop()
     }
-  }, 'lan-im: discovery + messaging')
+  }, 'lan-im: hub + messaging')
 
   ctx.effect(() => {
     const webServer = ctx.get('webServer') as WebServer | undefined

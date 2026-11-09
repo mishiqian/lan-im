@@ -143,7 +143,7 @@ export class ChannelRegistry {
     this.aliases.set(name, id)
     void this.runtime.persistChannels()
     this.notifyClients()
-    this.runtime.peerNetwork.broadcastWire({ t: 'channelAdd', channel })
+    this.runtime.transport.broadcastWire({ t: 'channelAdd', channel })
     return id
   }
 
@@ -191,8 +191,8 @@ export class ChannelRegistry {
     this.hiddenPublic.delete(id)
     void this.runtime.persistChannels()
     void this.runtime.sharedFileStore.removeByChannel(id).catch(() => {})
-    if (channel.kind === 'public') this.runtime.peerNetwork.broadcastWire({ t: 'channelDelete', id })
-    else this.runtime.peerNetwork.broadcastWireToAccounts({ t: 'channelDelete', id }, this.memberAccounts(channel))
+    if (channel.kind === 'public') this.runtime.transport.broadcastWire({ t: 'channelDelete', id })
+    else this.runtime.transport.broadcastWireToAccounts({ t: 'channelDelete', id }, this.memberAccounts(channel))
     this.notifyClients()
     this.runtime.clients.logEvent(`已解散频道 ${channel.name}`)
   }
@@ -254,7 +254,7 @@ export class ChannelRegistry {
   invite(channelId: string, accountId: string): void {
     const channel = this.requireManageable(channelId)
     if (channel.kind !== 'private') throw new Error('仅私有频道支持成员邀请')
-    const target = this.runtime.peerNetwork.resolveAccount(String(accountId ?? ''))
+    const target = this.runtime.transport.resolveAccount(String(accountId ?? ''))
     if (!/^[a-zA-Z0-9_.-]{1,32}$/.test(target)) throw new Error('账号格式不合法')
     const members = new Set(channel.members ?? [])
     if (members.has(target)) return
@@ -264,9 +264,9 @@ export class ChannelRegistry {
     void this.runtime.persistChannels()
     // 老成员只更新成员列表；新成员必须收到完整 channel 元数据。
     this.broadcastToAccounts(channel, existing, { t: 'channelMemberAdd', channelId, accountId: target })
-    this.runtime.peerNetwork.broadcastWireToAccounts({ t: 'channelAdd', channel }, [target])
+    this.runtime.transport.broadcastWireToAccounts({ t: 'channelAdd', channel }, [target])
     const channelFiles = this.runtime.sharedFileStore.listForChannel(channelId)
-    if (channelFiles.length > 0) this.runtime.peerNetwork.broadcastWireToAccounts({ t: 'sharedFilesSync', files: channelFiles }, [target])
+    if (channelFiles.length > 0) this.runtime.transport.broadcastWireToAccounts({ t: 'sharedFilesSync', files: channelFiles }, [target])
     this.notifyClients()
     this.runtime.clients.logEvent(`已邀请 ${target} 加入 ${channel.name}`)
   }
@@ -421,7 +421,7 @@ export class ChannelRegistry {
 
   private broadcastChannel(wire: { t: 'channelAdd'; channel: Channel } | { t: 'channelUpdate'; channel: Channel }, channel: Channel): void {
     if (channel.kind === 'public') {
-      this.runtime.peerNetwork.broadcastWire(wire)
+      this.runtime.transport.broadcastWire(wire)
     } else {
       const audience = this.memberAccounts(channel)
       this.broadcastToAccounts(channel, audience, wire)
@@ -429,7 +429,7 @@ export class ChannelRegistry {
   }
 
   private broadcastToAccounts(channel: Channel, accountIds: string[], wire: any): void {
-    if (channel.kind === 'public') this.runtime.peerNetwork.broadcastWire(wire)
-    else this.runtime.peerNetwork.broadcastWireToAccounts(wire, accountIds)
+    if (channel.kind === 'public') this.runtime.transport.broadcastWire(wire)
+    else this.runtime.transport.broadcastWireToAccounts(wire, accountIds)
   }
 }

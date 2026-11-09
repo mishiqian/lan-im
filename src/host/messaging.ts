@@ -27,9 +27,9 @@ export class Messaging {
       message.to = channelId
       this.runtime.messageStore.push(message)
       const audience = this.runtime.channelRegistry.audience(channelId)
-      this.runtime.peerNetwork.broadcastWireToAccounts(messageToWire(message), audience)
+      this.runtime.transport.broadcastWireToAccounts(messageToWire(message), audience)
       this.runtime.channelRegistry.notifyClients()
-      this.runtime.clients.logEvent(`发送频道消息 → ${audience.includes('*') ? this.runtime.peerNetwork.peersSnapshot().length : audience.length} 个账号`)
+      this.runtime.clients.logEvent(`发送频道消息 → ${audience.includes('*') ? this.runtime.transport.peersSnapshot().length : audience.length} 个账号`)
     } else {
       message.status = 'sent'
       this.runtime.messageStore.push(message)
@@ -39,7 +39,7 @@ export class Messaging {
         t: 'msg', id: message.id, from: message.from, fromName: message.fromName,
         to: message.to, toType: message.toType, body: message.body, ts: message.ts,
       }).then((sent) => {
-        if (!sent) this.runtime.peerNetwork.deliverToAccount(to)
+        if (!sent) this.runtime.transport.deliverToAccount(to)
       })
     }
     return message
@@ -63,11 +63,11 @@ export class Messaging {
 
   private broadcastToMessageTarget(m: ChatMessage, wire: PeerWireMessage): void {
     if (m.toType === 'account') {
-      this.runtime.peerNetwork.broadcastWire(wire)
+      this.runtime.transport.broadcastWire(wire)
       return
     }
     const audience = this.runtime.channelRegistry.audience(m.to)
-    this.runtime.peerNetwork.broadcastWireToAccounts(wire, audience)
+    this.runtime.transport.broadcastWireToAccounts(wire, audience)
   }
 
   editMessage(id: string, body: string): void {
