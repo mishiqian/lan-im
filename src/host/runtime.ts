@@ -220,7 +220,8 @@ export class HostRuntime {
   async resolvePeer(accountOrKeyId: string, timeoutMs = 4000): Promise<{ account: string; keyId: string; pubkey: string; prekey: string } | undefined> {
     const key = accountOrKeyId
     const cached = this.hubDir.get(key) ?? this.hubByKeyId.get(key)
-    if (cached !== undefined) return cached
+    // presence 预热只带 account/keyId；缺公钥时必须再 lookup 一次
+    if (cached !== undefined && cached.pubkey !== '' && cached.prekey !== '') return cached
     const client = this.hubClient
     if (client === undefined || client.getStatus().state !== 'online') return undefined
     const result = await new Promise<any>((resolve) => {
@@ -270,7 +271,11 @@ export class HostRuntime {
     const identity = this.identityData
     if (identity === undefined) return
     const fromKeyId = String(frame.from ?? '')
-    const peer = this.hubByKeyId.get(fromKeyId) ?? (await this.resolvePeer(fromKeyId))
+    // presence 预热只带 account/keyId，缺公钥时不能直接用（否则验签必然失败）
+    const cached = this.hubByKeyId.get(fromKeyId)
+    const peer = cached !== undefined && cached.pubkey !== '' && cached.prekey !== ''
+      ? cached
+      : (await this.resolvePeer(fromKeyId)) ?? cached
     if (peer === undefined) {
       this.clients.logEvent('收到无法识别的发送方信封，已丢弃')
       return
@@ -392,17 +397,21 @@ export class HostRuntime {
   async saveConfig(): Promise<void> {
     const old = await this.storage.readConfig()
     await this.storage.writeConfig({
+      ...old,
       nodeId: this.self.nodeId,
       account: this.accountWithCredentials(old.account),
       psk: this.psk || undefined,
       channels: this.channelRegistry.persisted(),
       hiddenChannels: this.channelRegistry.hiddenSnapshot(),
+      ...(this.hubConfig === undefined ? { hub: undefined } : { hub: this.hubConfig }),
+      hubSeq: this.hubSeq,
     })
   }
 
   async persistChannels(): Promise<void> {
     const config = await this.storage.readConfig()
     await this.storage.writeConfig({
+      ...config,
       nodeId: this.self.nodeId,
       account: this.accountWithCredentials(config.account),
       psk: (typeof config.psk === 'string' ? config.psk : this.psk) || undefined,

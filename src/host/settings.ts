@@ -16,7 +16,9 @@ export class Settings {
     self.name = (String(displayName ?? '').trim() || u).slice(0, 32)
     if (typeof password === 'string' && password !== '') {
       const { hash, salt } = hashPassword(password)
+      const base = await this.runtime.storage.readConfig()
       await this.runtime.storage.writeConfig({
+        ...base,
         nodeId: self.nodeId,
         account: { username: u, displayName: self.name, passwordHash: hash, salt },
         psk: this.runtime.psk || undefined,
@@ -44,6 +46,7 @@ export class Settings {
       account.salt = salt
     }
     await this.runtime.storage.writeConfig({
+      ...(await this.runtime.storage.readConfig()),
       nodeId: self.nodeId,
       account,
       psk: this.runtime.psk || undefined,

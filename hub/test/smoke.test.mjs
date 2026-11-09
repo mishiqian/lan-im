@@ -109,8 +109,9 @@ test('握手 → 加密转发 → 离线队列', { timeout: 8000 }, async () => 
   try {
   const a = await openClient(alice, 'alice')
   const b = await openClient(bob, 'bob')
-  assert.equal(a.frames.at(-1).t, 'ready')
-  assert.equal(b.frames.at(-1).t, 'ready')
+  // ready 之后枢纽还会补 presence（目录预热），所以不能断言“最后一帧是 ready”
+  assert.ok(a.frames.some((f) => f.t === 'ready'))
+  assert.ok(b.frames.some((f) => f.t === 'ready'))
 
   const key = sessionKey(alice, bob)
   const env = seal(alice, bob, key, JSON.stringify({ t: 'msg', body: '你好' }), 0)

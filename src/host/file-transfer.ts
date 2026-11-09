@@ -92,12 +92,16 @@ export class FileTransfer {
       }
       const targets = up.toType === 'channel'
         ? this.peersForChannel(channelId)
-        : this.runtime.transport.peersSnapshot().filter((p) => p.accountId === up.to)
+        : [{ accountId: up.to }]
       for (const peer of targets) {
         void this.runtime.sendViaHub(peer.accountId, 'file-meta', meta)
         for (let seq = 0; seq < totalChunks; seq++) {
           const slice = buf.subarray(seq * CHUNK_SIZE, (seq + 1) * CHUNK_SIZE)
           void this.runtime.sendViaHub(peer.accountId, 'file-chunk', { t: 'chunk', id, seq, data: slice.toString('base64') })
+          // 枢纽默认 50 条/秒：每 10 片停 300ms（≈33 条/秒），避免被限流丢片
+          if (seq % 10 === 9 && seq !== totalChunks - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 300))
+          }
         }
       }
       this.runtime.clients.logEvent(`已发送文件 ${up.name} (${(buf.length / 1024).toFixed(0)}KB)`)

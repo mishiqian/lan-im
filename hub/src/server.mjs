@@ -230,6 +230,12 @@ export function createHub(options = {}) {
       limits: { frameBytes: opts.frameBytes, msgPerSec: opts.msgPerSec, queueBytes: opts.queueBytes },
     })
     record(`+ ${session.account} (${session.keyId})`)
+    // 目录预热：把现有节点告诉新节点，也把新节点告诉现有节点
+    for (const [keyId, node] of nodes) {
+      if (keyId === session.keyId) continue
+      send(ws, { t: 'presence', v: PROTOCOL_VERSION, keyId, account: node.account, status: node.ws?.readyState === 1 ? 'online' : 'offline', lastSeen: node.seen })
+      send(node.ws, { t: 'presence', v: PROTOCOL_VERSION, keyId: session.keyId, account: session.account, status: 'online', lastSeen: Date.now() })
+    }
     flushQueue(session.keyId)
   }
 
@@ -335,6 +341,11 @@ export function createHub(options = {}) {
         return
       }
       if (frame.t === 'ping') return send(ws, { t: 'pong', v: PROTOCOL_VERSION, ts: Date.now() })
+      if (frame.t === 'pong') {
+        const node = nodes.get(session.keyId)
+        if (node !== undefined) node.seen = Date.now()
+        return
+      }
       if (frame.t === 'relay') return handleRelay(ws, session, frame)
       if (frame.t === 'lookup') return handleLookup(ws, frame)
       if (frame.t === 'presence') {

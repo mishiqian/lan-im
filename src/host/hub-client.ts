@@ -227,6 +227,7 @@ export class HubClient {
     if (frame.t === 'ready') {
       this.attempts = 0
       this.setStatus({ state: 'online', hubId: String(frame.hubId ?? ''), since: Date.now(), lastError: undefined })
+      this.send({ t: 'presence', v: HLP_VERSION, status: 'online' })
       this.handlers.onFrame?.(frame)
       return
     }
