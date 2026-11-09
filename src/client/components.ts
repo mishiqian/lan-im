@@ -231,6 +231,7 @@ export interface HubUiState {
   hubId?: string
   lastError?: string
   managed?: boolean
+  observedPin?: string
 }
 
 export function ProfileCenter(props: {
@@ -245,6 +246,7 @@ export function ProfileCenter(props: {
   onConfigureHub: (url: string, invite: string) => void
   onStartLocalHub: () => void
   onStopLocalHub: () => void
+  onTrustHubPin: () => void
   onClose: () => void
 }): React.ReactElement {
   const self = props.self
@@ -339,6 +341,12 @@ export function ProfileCenter(props: {
             ? React.createElement('button', { className: 'lim-mini', onClick: props.onStopLocalHub }, '停止本机枢纽')
             : null,
         ),
+        props.hub.observedPin !== undefined && props.hub.state !== 'online'
+          ? React.createElement('div', { className: 'lim-row' },
+              React.createElement('div', { className: 'lim-setup-hint' }, `证书指纹 ${props.hub.observedPin.slice(0, 16)}…`),
+              React.createElement('button', { className: 'lim-mini', onClick: props.onTrustHubPin }, '信任此证书'),
+            )
+          : null,
         React.createElement('div', { className: 'lim-setup-hint' }, '所有人（包括同一局域网）都经枢纽通信；内容端到端加密，枢纽只转发密文。'),
       ),
 
@@ -426,6 +434,7 @@ export interface ChatWindowProps {
   onConfigureHub: (url: string, invite: string) => void
   onStartLocalHub: () => void
   onStopLocalHub: () => void
+  onTrustHubPin: () => void
   onSearch: (keyword: string) => void
   onRecall: (id: string) => void
   onEdit: (id: string, body: string) => void
@@ -751,6 +760,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         onConfigureHub: props.onConfigureHub,
         onStartLocalHub: props.onStartLocalHub,
         onStopLocalHub: props.onStopLocalHub,
+        onTrustHubPin: props.onTrustHubPin,
         onClose: () => setShowProfile(false),
       })
     : null

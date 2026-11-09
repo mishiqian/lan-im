@@ -262,6 +262,13 @@ function App(): React.ReactElement {
     }).catch((e: any) => setError('启动本机枢纽失败：' + String(e?.message ?? e)))
   }
 
+  const trustHubPin = (): void => {
+    void apiPost({ action: 'hub.trustPin' }).then((r: any) => {
+      if (r?.hub !== undefined) setHub(r.hub)
+      if (r?.ok !== true) setError('确认证书失败：' + String(r?.error ?? '未知原因'))
+    }).catch((e: any) => setError('确认证书失败：' + String(e?.message ?? e)))
+  }
+
   const stopLocalHub = (): void => {
     void apiPost({ action: 'hub.stopLocal' }).then((r: any) => { if (r?.hub !== undefined) setHub(r.hub) }).catch(() => { /* 忽略 */ })
   }
@@ -280,6 +287,7 @@ function App(): React.ReactElement {
       onConfigureHub: configureHub,
       onStartLocalHub: startLocalHub,
       onStopLocalHub: stopLocalHub,
+      onTrustHubPin: trustHubPin,
       onToggleMute: toggleMute, onCreateChannel: createChannel, onRenameChannel: renameChannel, onDeleteChannel: deleteChannel,
       onJoinChannel: joinChannel, onLeaveChannel: leaveChannel, onInviteMember: inviteMember, onRemoveMember: removeMember,
       onRemoveSharedFile: removeSharedFile,

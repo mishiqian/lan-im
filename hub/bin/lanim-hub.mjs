@@ -9,7 +9,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { randomBytes } from 'node:crypto'
+import { X509Certificate, randomBytes } from 'node:crypto'
 import { createHub } from '../src/server.mjs'
 
 const args = process.argv.slice(2)
@@ -42,10 +42,11 @@ if (forcedInvite !== '') {
 }
 
 // 自签证书：只有显式 --tls 时才生成/使用（默认明文，生产建议前置反向代理）
-const wantTls = args.includes('--tls')
-const certFile = join(dataDir, 'hub.crt')
-const keyFile = join(dataDir, 'hub.key')
+const wantTls = args.includes('--tls') || arg('tls-cert', '') !== ''
+const certFile = arg('tls-cert', join(dataDir, 'hub.crt'))
+const keyFile = arg('tls-key', join(dataDir, 'hub.key'))
 let tls = null
+let fingerprint = ''
 if (wantTls && !existsSync(certFile)) {
   try {
     execFileSync('openssl', [
@@ -59,6 +60,11 @@ if (wantTls && !existsSync(certFile)) {
   }
 } else if (wantTls) {
   tls = { key: readFileSync(keyFile), cert: readFileSync(certFile) }
+}
+if (tls !== null) {
+  // 客户端要用它做指纹钉住（TOFU）
+  const x509 = new X509Certificate(tls.cert)
+  fingerprint = x509.fingerprint256.replace(/:/g, '').toLowerCase()
 }
 
 const hub = createHub({
@@ -76,7 +82,11 @@ hub.listen(port, host).then(({ port: actual }) => {
   console.log(`  管理接口  http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actual}/admin/nodes`)
   console.log(`  邀请码    ${invites.join(', ')}`)
   console.log(`  数据目录  ${dataDir}`)
-  if (tls !== null) console.log('  证书      自签 TLS 已启用（生产建议前置反向代理）')
+  if (tls !== null) {
+    console.log('  传输      TLS（自签或指定证书）')
+    console.log(`  证书指纹  ${fingerprint}`)
+    console.log('            客户端首次连接会显示这个指纹，确认一次即可钉住')
+  }
   else console.log('  传输      明文 ws（仅内网/本机；公网请用反向代理套 TLS）')
   console.log('')
 })

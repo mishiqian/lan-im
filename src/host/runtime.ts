@@ -58,7 +58,7 @@ export class HostRuntime {
 
   /** 枢纽连接（未配置时为 undefined） */
   private hubClient: HubClient | undefined
-  private hubConfig: { url: string; invite?: string } | undefined
+  private hubConfig: { url: string; invite?: string; certPin?: string } | undefined
   /** account → 对端公钥目录（来自 lookup/presence） */
   private readonly hubDir = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string; seen?: number }>()
   private readonly hubByKeyId = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string; seen?: number }>()
@@ -136,6 +136,16 @@ export class HostRuntime {
     return { ...base, ...(managed.running ? { managed: true } : {}), ...(base.lastError === undefined && managed.error !== undefined ? { lastError: managed.error } : {}) } as HubStatus
   }
 
+  /** 确认证书指纹（TOFU）后重连 */
+  async trustHubPin(): Promise<{ ok: boolean; error?: string }> {
+    const pin = this.hubStatus().observedPin
+    if (pin === undefined) return { ok: false, error: '还没有观测到证书指纹，请先连接一次' }
+    if (this.hubConfig === undefined) return { ok: false, error: '尚未配置枢纽地址' }
+    await this.configureHub(this.hubConfig.url, this.hubConfig.invite, pin)
+    this.clients.logEvent(`已钉住枢纽证书指纹 ${pin.slice(0, 16)}…`)
+    return { ok: true }
+  }
+
   /** 一键起枢纽：拉起本机 hub 子进程并自动连上 */
   async startLocalHub(): Promise<{ ok: boolean; url?: string; invite?: string; error?: string }> {
     const started = await this.hubLauncher.start(this.storage.dataDir(), this.self.ip)
@@ -156,8 +166,12 @@ export class HostRuntime {
   }
 
   /** 保存枢纽配置并立即重连 */
-  async configureHub(url: string, invite?: string): Promise<void> {
-    this.hubConfig = url === '' ? undefined : { url, ...(invite === undefined || invite === '' ? {} : { invite }) }
+  async configureHub(url: string, invite?: string, certPin?: string): Promise<void> {
+    this.hubConfig = url === '' ? undefined : {
+      url,
+      ...(invite === undefined || invite === '' ? {} : { invite }),
+      ...(certPin === undefined || certPin === '' ? {} : { certPin }),
+    }
     const config = await this.storage.readConfig()
     await this.storage.writeConfig({
       ...config,

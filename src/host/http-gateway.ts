@@ -115,8 +115,16 @@ export class HttpGateway {
                 await this.runtime.stopLocalHub()
                 return json(res, 200, { ok: true, hub: this.runtime.hubStatus() })
               }
+              if (action === 'hub.trustPin') {
+                const r = await this.runtime.trustHubPin()
+                return json(res, 200, { ...r, hub: this.runtime.hubStatus() })
+              }
               if (action === 'hub.configure') {
-                await this.runtime.configureHub(String(body.url ?? ''), typeof body.invite === 'string' ? body.invite : undefined)
+                await this.runtime.configureHub(
+                  String(body.url ?? ''),
+                  typeof body.invite === 'string' ? body.invite : undefined,
+                  typeof body.certPin === 'string' ? body.certPin : undefined,
+                )
                 return json(res, 200, { ok: true, hub: this.runtime.hubStatus() })
               }
               if (action === 'log') {

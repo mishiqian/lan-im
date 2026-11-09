@@ -5,6 +5,7 @@
  * 断线自动重连（指数退避），重连后重新握手。
  */
 import { randomBytes, sign, createPrivateKey } from 'node:crypto'
+import { connect as tlsConnect, type TLSSocket } from 'node:tls'
 import WebSocket from 'ws'
 import type { IdentityFile } from './identity.ts'
 import { prekeyPayload, toBase64Url } from './identity.ts'
@@ -16,6 +17,8 @@ const MAX_RECONNECT_MS = 30_000
 export interface HubConfig {
   url: string
   invite?: string
+  /** 证书指纹（sha256 hex，小写无冒号）；wss 首次连接时由用户确认后写入 */
+  certPin?: string
 }
 
 export interface HubStatus {
@@ -24,6 +27,8 @@ export interface HubStatus {
   url: string
   lastError?: string
   since?: number
+  /** 首次连接 wss 时观测到的指纹（未确认前不会建立可信连接） */
+  observedPin?: string
 }
 
 export interface HubHandlers {
@@ -66,6 +71,33 @@ export class HubClient {
     this.handlers.onStatus?.(this.status)
   }
 
+  /**
+   * wss 的校验策略：
+   * - 有 pin：必须与证书指纹一致（自签也能安全用）
+   * - 无 pin：捕获指纹后拒绝连接，交由用户确认（TOFU）
+   * - ws：局域网/本机，不涉及证书
+   */
+  private tlsOptions(): Record<string, unknown> | undefined {
+    if (!this.config.url.startsWith('wss://')) return undefined
+    const expected = (this.config.certPin ?? '').toLowerCase().replace(/:/g, '')
+    return {
+      rejectUnauthorized: false,
+      checkServerIdentity: (_host: string, cert: { raw?: Buffer; fingerprint256?: string }) => {
+        const pin = (cert?.fingerprint256 ?? '').replace(/:/g, '').toLowerCase()
+        if (pin === '') return new Error('枢纽证书不可读')
+        if (expected === '') {
+          this.setStatus({ observedPin: pin, state: 'offline', lastError: '证书未确认：请在设置里确认指纹后重试' })
+          return new Error('证书指纹未确认')
+        }
+        if (pin !== expected) {
+          this.setStatus({ state: 'offline', lastError: `证书指纹不匹配（期望 ${expected.slice(0, 16)}…，实际 ${pin.slice(0, 16)}…）` })
+          return new Error('证书指纹不匹配')
+        }
+        return undefined
+      },
+    }
+  }
+
   private edPrivate() {
     return createPrivateKey({ key: Buffer.from(this.identity.privateKey, 'base64'), format: 'der', type: 'pkcs8' })
   }
@@ -88,9 +120,24 @@ export class HubClient {
   private open(): void {
     if (this.closed) return
     this.setStatus({ state: 'connecting', lastError: undefined })
+    void this.connectOnce()
+  }
+
+  private async connectOnce(): Promise<void> {
+    let socket: TLSSocket | undefined
+    if (this.config.url.startsWith('wss://')) {
+      try {
+        socket = await this.verifiedSocket()
+      } catch {
+        this.scheduleReconnect()
+        return
+      }
+    }
     let ws: WebSocket
     try {
-      ws = new WebSocket(this.config.url)
+      ws = socket === undefined
+        ? new WebSocket(this.config.url)
+        : new WebSocket(this.config.url, { createConnection: () => socket as TLSSocket })
     } catch (err: any) {
       this.setStatus({ state: 'offline', lastError: String(err?.message ?? err) })
       this.scheduleReconnect()
@@ -100,22 +147,7 @@ export class HubClient {
     ws.on('open', () => {
       this.attempts = 0
       this.clientNonce = randomBytes(4).toString('hex')
-      this.send({
-        t: 'hello',
-        v: HLP_VERSION,
-        nodeId: this.self.nodeId,
-        account: this.self.accountId,
-        keyId: this.identity.keyId,
-        pubkey: toBase64Url(this.identity.publicKey),
-        ...(this.identity.x25519PublicKey === undefined ? {} : {
-          prekey: this.identity.x25519PublicKey,
-          prekeySig: this.prekeySignature(),
-        }),
-        nonce: this.clientNonce,
-        ts: Date.now(),
-        caps: { min: HLP_VERSION, max: HLP_VERSION, features: ['text', 'presence', 'queue', 'lookup'] },
-        ...(this.config.invite === undefined || this.config.invite === '' ? {} : { invite: this.config.invite }),
-      })
+      this.send({ ...this.helloFrame() })
     })
     ws.on('message', (raw) => this.onMessage(String(raw)))
     ws.on('close', () => {
@@ -125,6 +157,54 @@ export class HubClient {
       this.scheduleReconnect()
     })
     ws.on('error', (err: any) => this.setStatus({ state: 'offline', lastError: String(err?.message ?? err) }))
+  }
+
+  private helloFrame(): Record<string, unknown> {
+    return {
+      t: 'hello',
+      v: HLP_VERSION,
+      nodeId: this.self.nodeId,
+      account: this.self.accountId,
+      keyId: this.identity.keyId,
+      pubkey: toBase64Url(this.identity.publicKey),
+      ...(this.identity.x25519PublicKey === undefined ? {} : {
+        prekey: this.identity.x25519PublicKey,
+        prekeySig: this.prekeySignature(),
+      }),
+      nonce: this.clientNonce,
+      ts: Date.now(),
+      caps: { min: HLP_VERSION, max: HLP_VERSION, features: ['text', 'presence', 'queue', 'lookup'] },
+      ...(this.config.invite === undefined || this.config.invite === '' ? {} : { invite: this.config.invite }),
+    }
+  }
+
+  /**
+   * wss 先手工做一次 TLS 握手，拿到证书指纹再决定是否继续：
+   * - 有 pin：必须一致（自签也能安全用）
+   * - 无 pin：记录指纹并拒绝（TOFU，等用户在设置里确认）
+   */
+  private async verifiedSocket(): Promise<TLSSocket> {
+    const url = new URL(this.config.url)
+    const port = Number(url.port === '' ? '443' : url.port)
+    const expected = (this.config.certPin ?? '').toLowerCase().replace(/:/g, '')
+    return await new Promise<TLSSocket>((resolve, reject) => {
+      const socket = tlsConnect({ host: url.hostname, port, servername: url.hostname, rejectUnauthorized: false })
+      const fail = (message: string, pin?: string): void => {
+        this.setStatus({ state: 'offline', lastError: message, ...(pin === undefined ? {} : { observedPin: pin }) })
+        socket.destroy()
+        reject(new Error(message))
+      }
+      socket.once('error', (err) => reject(err))
+      socket.once('secureConnect', () => {
+        const cert = socket.getPeerCertificate() as { fingerprint256?: string }
+        const pin = (cert?.fingerprint256 ?? '').replace(/:/g, '').toLowerCase()
+        if (pin === '') { fail('枢纽证书不可读'); return }
+        if (expected === '') { fail('证书未确认：请确认指纹后重试', pin); return }
+        if (pin !== expected) { fail(`证书指纹不匹配（期望 ${expected.slice(0, 16)}…，实际 ${pin.slice(0, 16)}…）`, pin); return }
+        this.setStatus({ observedPin: pin })
+        resolve(socket)
+      })
+    })
   }
 
   private onMessage(raw: string): void {
