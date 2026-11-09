@@ -1,0 +1,12 @@
+services:
+  hub:
+    build: .
+    # 也可以直接用镜像：image: ghcr.io/mishiqian/lanim-hub:latest
+    container_name: lanim-hub
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Shanghai

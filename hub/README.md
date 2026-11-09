@@ -6,10 +6,53 @@ lan-im 的通信枢纽：**认证、路由、离线队列**，不解析、不存
 - 产品与架构：[RELAY-PRD.md](../RELAY-PRD.md)
 - 规范向量：[spec/](../spec/README.md)
 
-## 一条命令启动
+## 部署方式（三选一）
+
+### A. Docker（推荐）
 
 ```bash
-npx @mishijian/lanim-hub --port 8787 --data ./hub-data
+# 方式 1：compose（仓库内的 hub/ 目录）
+cd hub && docker compose up -d
+
+# 方式 2：直接构建
+docker build -t lanim-hub ./hub
+docker run -d --name lanim-hub -p 8787:8787 -v "$PWD/data:/data" lanim-hub
+```
+
+数据卷挂在 `/data`，重启容器不会丢邀请码与队列。
+
+### B. 全局安装（有 Node 20+ 的机器）
+
+```bash
+npm install -g /path/to/lan-im/hub     # 从源码目录安装
+lanim-hub --port 8787 --data ./hub-data --tls
+```
+
+（发布到 npm 之后即可 `npm i -g @mishijian/lanim-hub`，当前需从本地目录安装。）
+
+### C. 直接跑（调试用）
+
+```bash
+cd /path/to/lan-im/hub
+npm install --omit=dev
+node bin/lanim-hub.mjs --port 8787 --data ./hub-data
+```
+
+### systemd（Linux 常驻）
+
+```ini
+[Unit]
+Description=lan-im hub
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/lanim-hub
+ExecStart=/usr/bin/node bin/lanim-hub.mjs --host 0.0.0.0 --port 8787 --data /var/lib/lanim-hub
+Restart=always
+User=lanim
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 首次启动会生成邀请码并打印接入信息：
@@ -25,10 +68,17 @@ lan-im 枢纽已启动
 
 自动生成的 `invites.json` 只有权限 0600 的持有者可读。
 
-## 局域网使用
+## 使用方怎么接
 
-把枢纽跑在局域网里的一台机器上，其他人填 `ws://<那台机器IP>:8787`（或经反向代理的 `wss://`）。
-流量只在内网，协议与加密跟公网部署完全一致。
+任何装了插件的人，在「个人中心 → 通信枢纽」里填：
+
+```
+地址    ws://<枢纽主机>:8787/hlp    或   wss://hub.example.com/hlp
+邀请码  <枢纽启动时打印的那串>
+```
+
+点「连接」即可。插件自带的「在本机启动枢纽」只是把这套流程自动化，
+和独立部署的枢纽**完全同源**：可以随时在两者之间切换，客户端只改地址。
 
 ## TLS
 
