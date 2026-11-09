@@ -92,6 +92,19 @@ test('篡改密文 / 换收件人 / 换发送方都会被拒', async () => {
   assert.equal(wrongSender.ok, false)
 })
 
+test('会话密钥缓存：同一对端返回同一个 Buffer，换人/换 prekey 会变', async () => {
+  const a = await newIdentity()
+  const b = await newIdentity()
+  const c = await newIdentity()
+  const k1 = deriveSessionKey(a.identity, b.identity.keyId, b.identity.x25519PublicKey)
+  const k2 = deriveSessionKey(a.identity, b.identity.keyId, b.identity.x25519PublicKey)
+  assert.equal(k1, k2, '缓存命中应返回同一个对象')
+  const k3 = deriveSessionKey(a.identity, c.identity.keyId, c.identity.x25519PublicKey)
+  assert.notEqual(k1.toString('hex'), k3.toString('hex'))
+  const k4 = deriveSessionKey(a.identity, b.identity.keyId, c.identity.x25519PublicKey)
+  assert.notEqual(k1.toString('hex'), k4.toString('hex'), '对端 prekey 变化必须换密钥')
+})
+
 test('双方派生出同一把会话密钥', async () => {
   const a = await newIdentity()
   const b = await newIdentity()

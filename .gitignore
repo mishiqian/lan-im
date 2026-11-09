@@ -2,3 +2,4 @@ node_modules
 lib
 *.tar.gz
 *.tgz
+.DS_Store
