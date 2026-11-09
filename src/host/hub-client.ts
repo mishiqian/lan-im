@@ -181,33 +181,71 @@ export class HubClient {
     }
   }
 
-  /**
-   * wss 先手工做一次 TLS 握手，拿到证书指纹再决定是否继续：
-   * - 有 pin：必须一致（自签也能安全用）
-   * - 无 pin：记录指纹并拒绝（TOFU，等用户在设置里确认）
-   */
-  private async verifiedSocket(): Promise<TLSSocket> {
+  /** 一次 TLS 握手，返回 socket 与证书指纹 */
+  private handshake(opts: { verifyChain: boolean }): Promise<{ socket: TLSSocket; pin: string }> {
     const url = new URL(this.config.url)
     const port = Number(url.port === '' ? '443' : url.port)
-    const expected = (this.config.certPin ?? '').toLowerCase().replace(/:/g, '')
-    return await new Promise<TLSSocket>((resolve, reject) => {
-      const socket = tlsConnect({ host: url.hostname, port, servername: url.hostname, rejectUnauthorized: false })
-      const fail = (message: string, pin?: string): void => {
-        this.setStatus({ state: 'offline', lastError: message, ...(pin === undefined ? {} : { observedPin: pin }) })
-        socket.destroy()
-        reject(new Error(message))
-      }
-      socket.once('error', (err) => reject(err))
+    return new Promise((resolve, reject) => {
+      const socket = tlsConnect({
+        host: url.hostname,
+        port,
+        servername: url.hostname,
+        rejectUnauthorized: opts.verifyChain,
+      })
+      socket.once('error', (err) => { socket.destroy(); reject(err) })
       socket.once('secureConnect', () => {
         const cert = socket.getPeerCertificate() as { fingerprint256?: string }
         const pin = (cert?.fingerprint256 ?? '').replace(/:/g, '').toLowerCase()
-        if (pin === '') { fail('枢纽证书不可读'); return }
-        if (expected === '') { fail('证书未确认：请确认指纹后重试', pin); return }
-        if (pin !== expected) { fail(`证书指纹不匹配（期望 ${expected.slice(0, 16)}…，实际 ${pin.slice(0, 16)}…）`, pin); return }
-        this.setStatus({ observedPin: pin })
-        resolve(socket)
+        resolve({ socket, pin })
       })
     })
+  }
+
+  /**
+   * 证书校验分两级：
+   * 1. 系统信任链能过（公网 CA，例如 Let's Encrypt）→ 直接接受，不需要用户确认
+   * 2. 链过不了（自签）→ TOFU：有 pin 就比对，没有就把指纹交回用户确认
+   */
+  private async verifiedSocket(): Promise<TLSSocket> {
+    const expected = (this.config.certPin ?? '').toLowerCase().replace(/:/g, '')
+
+    try {
+      const { socket, pin } = await this.handshake({ verifyChain: true })
+      if (pin !== '') this.setStatus({ observedPin: pin })
+      return socket
+    } catch {
+      // 链不可信（自签/私有 CA），进入指纹确认
+    }
+
+    let captured: { socket: TLSSocket; pin: string }
+    try {
+      captured = await this.handshake({ verifyChain: false })
+    } catch (err: any) {
+      this.setStatus({ state: 'offline', lastError: `无法建立 TLS 连接：${err?.message ?? err}` })
+      throw err
+    }
+    const { socket, pin } = captured
+    if (pin === '') {
+      socket.destroy()
+      this.setStatus({ state: 'offline', lastError: '枢纽证书不可读' })
+      throw new Error('枢纽证书不可读')
+    }
+    if (expected === '') {
+      socket.destroy()
+      this.setStatus({ state: 'offline', lastError: '证书未确认：请确认指纹后重试', observedPin: pin })
+      throw new Error('证书未确认')
+    }
+    if (pin !== expected) {
+      socket.destroy()
+      this.setStatus({
+        state: 'offline',
+        observedPin: pin,
+        lastError: `证书指纹不匹配（期望 ${expected.slice(0, 16)}…，实际 ${pin.slice(0, 16)}…）`,
+      })
+      throw new Error('证书指纹不匹配')
+    }
+    this.setStatus({ observedPin: pin })
+    return socket
   }
 
   private onMessage(raw: string): void {
