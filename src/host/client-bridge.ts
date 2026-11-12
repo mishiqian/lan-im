@@ -15,6 +15,13 @@ function normalizeReply(value: unknown): { id: string; fromName: string; body: s
   return { id, fromName: String(v.fromName ?? '').slice(0, 32), body }
 }
 
+/** @提及的账号列表：去重、限长 */
+function normalizeMentions(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const list = [...new Set(value.map((x) => String(x)).filter((x) => x !== ''))].slice(0, 32)
+  return list.length === 0 ? undefined : list
+}
+
 export class ClientBridge {
   constructor(private readonly runtime: HostRuntime) {}
 
@@ -45,6 +52,7 @@ export class ClientBridge {
               msg.toType === 'account' ? 'account' : 'channel',
               String(msg.body ?? ''),
               normalizeReply(msg.replyTo),
+              normalizeMentions(msg.mentions),
             )
           } catch (err: any) {
             this.runtime.clients.error(ws, err?.message ?? String(err))

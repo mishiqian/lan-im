@@ -154,10 +154,23 @@ export const CSS = `
 .lim-empty-hint{font-size:12px;color:var(--lim-faint);max-width:260px;line-height:1.7}
 
 /* ---------- 输入区（单容器） ---------- */
-.lim-composer{flex:none;display:flex;flex-direction:column;gap:6px;margin:0 14px 14px;padding:8px 8px 8px 10px;border-radius:14px;background:var(--lim-surface);border:1px solid transparent;transition:border-color .14s ease,box-shadow .14s ease}
+.lim-composer{position:relative;flex:none;display:flex;flex-direction:column;gap:6px;margin:0 14px 14px;padding:8px 8px 8px 10px;border-radius:14px;background:var(--lim-surface);border:1px solid transparent;transition:border-color .14s ease,box-shadow .14s ease}
 .lim-composer:focus-within{border-color:var(--lim-accent);box-shadow:0 0 0 3px var(--lim-accent-weak)}
 .lim-composer.offline{opacity:.8}
-.lim-composer-row{display:flex;align-items:flex-end;gap:6px}
+.lim-composer-row{display:flex;align-items:flex-end;gap:4px}
+.lim-composer-tool{display:grid;place-items:center;min-width:28px;height:32px;padding:0 4px;flex:none;border:none;border-radius:8px;background:transparent;color:var(--lim-muted);font:inherit;font-size:15px;font-weight:600;cursor:pointer;transition:background .12s ease,color .12s ease}
+.lim-composer-tool:hover:not(:disabled){background:var(--lim-hover);color:var(--lim-fg)}
+.lim-composer-tool.on{color:var(--lim-accent);background:var(--lim-accent-weak)}
+.lim-composer-tool:disabled{opacity:.4;cursor:not-allowed}
+.lim-composer-tool:focus-visible{outline:2px solid var(--lim-accent);outline-offset:1px}
+.lim-mention-panel{position:absolute;left:14px;right:14px;bottom:calc(100% - 2px);max-height:196px;overflow-y:auto;padding:4px;border-radius:12px;background:var(--lim-surface);border:1px solid var(--lim-border);box-shadow:0 12px 32px rgba(0,0,0,.4);z-index:20}
+.lim-mention-item{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:none;border-radius:8px;background:transparent;color:var(--lim-fg);font:inherit;font-size:13px;cursor:pointer;text-align:left}
+.lim-mention-item:hover,.lim-mention-item.on{background:var(--lim-accent-weak)}
+.lim-mention-avatar{width:22px;height:22px;flex:none;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--lim-accent) 20%,var(--lim-surface));color:var(--lim-accent);font-size:10.5px;font-weight:700}
+.lim-mention-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lim-mention-id{font-size:11px;color:var(--lim-faint)}
+.lim-mention{color:var(--lim-accent);font-weight:600}
+.lim-msg.mine .lim-mention{color:#d9f4ff}
 .lim-attach{display:grid;place-items:center;width:30px;height:32px;flex:none;border-radius:8px;color:var(--lim-muted);cursor:pointer;transition:background .12s ease,color .12s ease}
 .lim-attach:hover{background:var(--lim-hover);color:var(--lim-fg)}
 .lim-attach:focus-within{outline:2px solid var(--lim-accent);outline-offset:1px}

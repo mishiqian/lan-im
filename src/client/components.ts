@@ -105,6 +105,14 @@ export function ContactItem(props: { icon: string; name: string; active: boolean
   )
 }
 
+/** 把 @名字 渲染成高亮片段（不改变纯文本语义） */
+function renderBodyWithMentions(body: string): React.ReactNode[] {
+  const parts = body.split(/(@[\w\u4e00-\u9fa5_.-]{1,24})/g)
+  return parts.map((part, i) => (part.startsWith('@') && part.length > 1
+    ? React.createElement('span', { className: 'lim-mention', key: i }, part)
+    : part))
+}
+
 export function MessageBubble(props: {
   message: ChatMessage
   selfAccountId: string
@@ -170,7 +178,7 @@ export function MessageBubble(props: {
     React.createElement('div', { className: 'lim-msg-main' },
       meta,
       React.createElement('div', { className: 'lim-bubble-wrap' },
-        React.createElement('div', { className: 'lim-bubble' }, quote, message.body),
+        React.createElement('div', { className: 'lim-bubble' }, quote, renderBodyWithMentions(message.body)),
         tools,
       ),
     ),
@@ -575,7 +583,7 @@ export interface ChatWindowProps {
   activeType: TargetType
   searchResults: ChatMessage[] | null
   onSelect: (id: string, type: TargetType) => void
-  onSend: (to: string, toType: TargetType, body: string, replyTo?: { id: string; fromName: string; body: string }) => void
+  onSend: (to: string, toType: TargetType, body: string, replyTo?: { id: string; fromName: string; body: string }, mentions?: string[]) => void
   onSetName: (name: string) => void
   onSetupAccount: (username: string, displayName: string, password: string) => void
   onSetupPsk: (psk: string) => void
@@ -631,6 +639,9 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
   const composerRef = React.useRef<HTMLTextAreaElement | null>(null)
   const [dragging, setDragging] = React.useState(false)
   const [replyTarget, setReplyTarget] = React.useState<ChatMessage | null>(null)
+  /** @ 候选面板：null 表示关闭 */
+  const [mention, setMention] = React.useState<{ start: number; query: string; index: number } | null>(null)
+  const [mentioned, setMentioned] = React.useState<string[]>([])
   React.useEffect(() => {
     const el = composerRef.current
     if (el === null) return
@@ -721,6 +732,30 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     return () => { window.clearTimeout(timer); if (added) document.removeEventListener('pointerdown', onDocDown) }
   }, [props.onClose])
 
+  const applyMention = (candidate: { accountId: string; name: string }): void => {
+    if (mention === null) return
+    const before = draft.slice(0, mention.start)
+    const after = draft.slice(mention.start + 1 + mention.query.length)
+    setDraft(`${before}@${candidate.name} ${after}`)
+    setMentioned((prev) => (prev.includes(candidate.accountId) ? prev : [...prev, candidate.accountId]))
+    setMention(null)
+    window.setTimeout(() => composerRef.current?.focus(), 0)
+  }
+
+  /** 根据光标位置决定是否弹出 @ 面板 */
+  const syncMention = (value: string, caret: number): void => {
+    const head = value.slice(0, caret)
+    const at = head.lastIndexOf('@')
+    if (at === -1) { setMention(null); return }
+    const query = head.slice(at + 1)
+    if (/\s/.test(query) || query.length > 20) { setMention(null); return }
+    if (at > 0) {
+      const prev = head[at - 1]
+      if (prev !== ' ' && prev !== '\n' && prev !== '\t') { setMention(null); return }
+    }
+    setMention({ start: at, query, index: 0 })
+  }
+
   const send = (): void => {
     const text = draft.trim()
     if (text === '') return
@@ -732,10 +767,12 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         id: replyTarget.id,
         fromName: replyTarget.fromName || replyTarget.from,
         body: replyTarget.body.slice(0, 120),
-      })
+      }, mentioned.length === 0 ? undefined : mentioned)
     }
     setDraft('')
     setReplyTarget(null)
+    setMentioned([])
+    setMention(null)
   }
 
   const onHeaderPointerDown = (e: React.PointerEvent): void => {
@@ -791,6 +828,29 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     : active === '*' && activeType === 'channel'
       ? { id: '*', name: '公共频道', kind: 'public' as const, createdBy: '*', createdAt: 0 }
       : undefined
+  const mentionCandidates = React.useMemo(() => {
+    const pool: Array<{ accountId: string; name: string }> = []
+    const push = (accountId: string, name: string): void => {
+      if (accountId === '' || accountId === self?.accountId) return
+      if (pool.some((p) => p.accountId === accountId)) return
+      pool.push({ accountId, name: name || accountId })
+    }
+    if (activeType === 'channel' && activeChannel !== undefined) {
+      for (const member of activeChannel.members ?? []) {
+        const peer = accounts.find((a) => a.accountId === member)
+        push(member, peer?.name ?? member)
+      }
+    }
+    for (const a of accounts) push(a.accountId, a.name)
+    return pool
+  }, [activeType, active, accounts, activeChannel, self?.accountId])
+
+  const mentionMatches = mention === null
+    ? []
+    : mentionCandidates
+        .filter((c) => c.name.toLowerCase().includes(mention.query.toLowerCase()) || c.accountId.toLowerCase().includes(mention.query.toLowerCase()))
+        .slice(0, 6)
+
   const canManageActive = activeChannel !== undefined && activeChannel.id !== '*' && (activeChannel.createdBy === '*' || activeChannel.createdBy === self?.accountId)
 
   const convFilter = (to: string, toType: TargetType, from: string): boolean => {
@@ -879,16 +939,6 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         )
       : null,
     React.createElement('div', { className: 'lim-composer-row' },
-      React.createElement('label', {
-        className: 'lim-attach',
-        title: connected ? '发送文件（≤20MB，也可拖进来）' : '与宿主断开，暂不能发送文件',
-      },
-        React.createElement(Icon, { name: 'paperclip', size: 17 }),
-        React.createElement('input', {
-          ref: fileRef, type: 'file', style: { display: 'none' }, disabled: !connected,
-          onChange: (e: any) => { const f = e.target.files?.[0]; if (f) props.onSendFile(f, active, activeType); e.target.value = '' },
-        }),
-      ),
       React.createElement('textarea', {
         ref: composerRef, className: 'lim-composer-input', rows: 1, value: draft,
         placeholder: !connected
@@ -896,7 +946,10 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
           : editingId !== null
             ? '编辑消息…（回车保存，Esc 取消）'
             : activeType === 'channel' ? (active === '*' ? '发送到公共频道…' : `发送到 ${activeChannel?.name ?? active}…`) : '发送私聊…',
-        onChange: (e: any) => setDraft(e.target.value),
+        onChange: (e: any) => {
+          setDraft(e.target.value)
+          syncMention(e.target.value, e.target.selectionStart ?? e.target.value.length)
+        },
         onPaste: (e: any) => {
           const files: File[] = [...(e.clipboardData?.files ?? [])]
           if (files.length > 0) { e.preventDefault(); for (const f of files) props.onSendFile(f, active, activeType) }
@@ -904,6 +957,12 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         onCompositionStart: () => { composingRef.current = true },
         onCompositionEnd: () => { composingRef.current = false },
         onKeyDown: (e: any) => {
+          if (mention !== null && mentionMatches.length > 0) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setMention({ ...mention, index: (mention.index + 1) % mentionMatches.length }); return }
+            if (e.key === 'ArrowUp') { e.preventDefault(); setMention({ ...mention, index: (mention.index - 1 + mentionMatches.length) % mentionMatches.length }); return }
+            if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); applyMention(mentionMatches[mention.index] ?? mentionMatches[0]); return }
+            if (e.key === 'Escape') { e.preventDefault(); setMention(null); return }
+          }
           if (e.key === 'Escape' && editingId !== null) { setEditingId(null); setDraft(''); return }
           if (e.key !== 'Enter') return
           if (composingRef.current || (e.nativeEvent && e.nativeEvent.isComposing)) return
@@ -911,6 +970,29 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
           e.preventDefault(); send()
         },
       }),
+      React.createElement('button', {
+        className: 'lim-composer-tool' + (mention !== null ? ' on' : ''),
+        title: mentionCandidates.length === 0 ? '当前会话没有可提及的人' : '提及成员（输入 @ 也可以）',
+        'aria-label': '提及成员',
+        disabled: mentionCandidates.length === 0,
+        onClick: () => {
+          const el = composerRef.current
+          const caret = el?.selectionStart ?? draft.length
+          setDraft(`${draft.slice(0, caret)}@${draft.slice(caret)}`)
+          syncMention(`${draft.slice(0, caret)}@${draft.slice(caret)}`, caret + 1)
+          window.setTimeout(() => el?.focus(), 0)
+        },
+      }, '@'),
+      React.createElement('label', {
+        className: 'lim-composer-tool',
+        title: connected ? '发送文件（≤20MB，也可拖进来）' : '与宿主断开，暂不能发送文件',
+      },
+        React.createElement(Icon, { name: 'paperclip', size: 16 }),
+        React.createElement('input', {
+          ref: fileRef, type: 'file', style: { display: 'none' }, disabled: !connected,
+          onChange: (e: any) => { const f = e.target.files?.[0]; if (f) props.onSendFile(f, active, activeType); e.target.value = '' },
+        }),
+      ),
       React.createElement('button', {
         className: 'lim-composer-send' + (draft.trim() === '' ? ' idle' : ''),
         disabled: !connected || (draft.trim() === '' && editingId === null),
@@ -921,6 +1003,19 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         ? React.createElement('span', { className: 'lim-send-text' }, '保存')
         : React.createElement(Icon, { name: 'send', size: 16 })),
     ),
+    mention !== null && mentionMatches.length > 0
+      ? React.createElement('div', { className: 'lim-mention-panel', role: 'listbox' },
+          mentionMatches.map((c, i) => React.createElement('button', {
+            key: c.accountId, role: 'option', 'aria-selected': i === mention.index,
+            className: 'lim-mention-item' + (i === mention.index ? ' on' : ''),
+            onMouseDown: (e: any) => { e.preventDefault(); applyMention(c) },
+          },
+            React.createElement('span', { className: 'lim-mention-avatar' }, c.name.slice(0, 1).toUpperCase()),
+            React.createElement('span', { className: 'lim-mention-name' }, c.name),
+            React.createElement('span', { className: 'lim-mention-id' }, `@${c.accountId}`),
+          )),
+        )
+      : null,
   )
 
   const fileToolbar = needSetup || activeTab !== 'files' ? null : React.createElement('div', { className: 'lim-composer' },

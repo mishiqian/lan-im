@@ -388,6 +388,7 @@ export class HostRuntime {
       body: String(wire.body ?? ''), ts: Number(wire.ts ?? Date.now()),
       kind: 'text', local: false,
       ...(wire.replyTo === undefined ? {} : { replyTo: wire.replyTo }),
+      ...(Array.isArray(wire.mentions) ? { mentions: wire.mentions.map((x: unknown) => String(x)).slice(0, 32) } : {}),
     } as any)
   }
 

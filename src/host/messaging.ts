@@ -6,6 +6,7 @@ export function messageToWire(m: ChatMessage): PeerWireMessage {
   return {
     t: 'msg', id: m.id, from: m.from, fromName: m.fromName, to: m.to, toType: m.toType, body: m.body, ts: m.ts,
     ...(m.replyTo === undefined ? {} : { replyTo: m.replyTo }),
+    ...(m.mentions === undefined || m.mentions.length === 0 ? {} : { mentions: m.mentions }),
   }
 }
 
@@ -17,13 +18,18 @@ export function messageToWire(m: ChatMessage): PeerWireMessage {
 export class Messaging {
   constructor(private readonly runtime: HostRuntime) {}
 
-  sendMessage(to: string, toType: TargetType, body: string, replyTo?: { id: string; fromName: string; body: string }): ChatMessage {
+  sendMessage(
+    to: string, toType: TargetType, body: string,
+    replyTo?: { id: string; fromName: string; body: string },
+    mentions?: string[],
+  ): ChatMessage {
     const text = String(body ?? '').trim()
     if (text === '') throw new Error('消息内容不能为空')
     const message: ChatMessage = {
       id: randomUUID(), from: this.runtime.self.accountId, fromName: this.runtime.self.name,
       to, toType, body: text, ts: Date.now(), kind: 'text', local: true,
       ...(replyTo === undefined ? {} : { replyTo }),
+      ...(mentions === undefined || mentions.length === 0 ? {} : { mentions }),
     }
     if (toType === 'channel') {
       const channelId = this.runtime.channelRegistry.resolveTarget(to)
@@ -43,6 +49,7 @@ export class Messaging {
         t: 'msg', id: message.id, from: message.from, fromName: message.fromName,
         to: message.to, toType: message.toType, body: message.body, ts: message.ts,
         ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
+        ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
       }).then((sent) => {
         if (!sent) this.runtime.transport.deliverToAccount(to)
       })

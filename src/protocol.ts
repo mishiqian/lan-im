@@ -89,6 +89,8 @@ export interface ChatMessage {
   edited?: boolean
   /** 引用回复：被引用消息的摘要 */
   replyTo?: { id: string; fromName: string; body: string }
+  /** 被 @ 的账号（用于高亮与后续提醒） */
+  mentions?: string[]
 }
 
 /** 频道共享文件索引（v2 局域网网盘）。物理文件在 ownerNodeId，其他节点按需拉取缓存。 */
@@ -128,7 +130,7 @@ export type PeerWireMessage =
       pubkey?: string; keyId?: string; ts?: number; sig?: string
     }
   | { t: 'helloAck'; accountId: string; nodeId: string; pubkey?: string; keyId?: string; ts?: number; sig?: string }
-  | { t: 'msg'; id: string; from: string; fromName: string; to: string; toType: TargetType; body: string; ts: number; replyTo?: { id: string; fromName: string; body: string } }
+  | { t: 'msg'; id: string; from: string; fromName: string; to: string; toType: TargetType; body: string; ts: number; replyTo?: { id: string; fromName: string; body: string }; mentions?: string[] }
   | { t: 'ack'; id: string }
   | { t: 'recall'; id: string; from: string }
   | { t: 'edit'; id: string; from: string; body: string; ts: number }

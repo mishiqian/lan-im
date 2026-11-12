@@ -141,6 +141,7 @@ export class HttpGateway {
                     fromName: String((body.replyTo as Record<string, unknown>).fromName ?? '').slice(0, 32),
                     body: String((body.replyTo as Record<string, unknown>).body ?? '').slice(0, 120),
                   },
+                  Array.isArray(body.mentions) ? (body.mentions as unknown[]).map((x) => String(x)).slice(0, 32) : undefined,
                 )
                 return json(res, 200, { ok: true, message })
               }

@@ -264,7 +264,7 @@ ct, tag = AES-256-GCM(key, nonce, plaintext, AAD)
 
 | kind | plaintext 结构 |
 |---|---|
-| `text` | `{t:"msg"|"recall"|"edit", …}`（与现有 msg/recall/edit 帧同构）；`msg` 可带 `replyTo:{id,fromName,body}` 表示引用回复 |
+| `text` | `{t:"msg"|"recall"|"edit", …}`（与现有 msg/recall/edit 帧同构）；`msg` 可带 `replyTo:{id,fromName,body}` 表示引用回复、`mentions:[accountId]` 表示 @ 提及 |
 | `presence` | `{t:"presence", status, typing?}` |
 | `channel` | `{t:"channelAdd"|"channelUpdate"|…}` |
 | `file-meta` | `{t:"file", name, size, mime, sha256, totalChunks}` |
