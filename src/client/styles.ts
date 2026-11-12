@@ -97,6 +97,7 @@ export const CSS = `
 .lim-contact:hover .lim-channel-act,.lim-contact:focus-within .lim-channel-act,.lim-contact.on .lim-channel-act,
 .lim-contact:hover .lim-channel-x,.lim-contact:focus-within .lim-channel-x{opacity:1}
 .lim-channel-act:hover{background:var(--lim-hover);color:var(--lim-fg)}
+.lim-channel-act.on{opacity:1;color:var(--lim-accent)}
 .lim-channel-x:hover{background:var(--lim-hover);color:var(--lim-danger)}
 .lim-newchannel{display:flex;align-items:center;gap:9px;height:34px;padding:0 9px;margin-top:2px;border:none;border-radius:9px;background:transparent;color:var(--lim-faint);font:inherit;font-size:13px;cursor:pointer;width:100%;text-align:left}
 .lim-newchannel:hover{background:var(--lim-hover);color:var(--lim-fg)}

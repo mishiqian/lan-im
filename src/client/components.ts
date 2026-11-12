@@ -880,6 +880,48 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     : active === '*' && activeType === 'channel'
       ? { id: '*', name: '公共频道', kind: 'public' as const, createdBy: '*', createdAt: 0 }
       : undefined
+  /** 每个会话的最后活跃时间，用于排序 */
+  const lastActive = React.useMemo(() => {
+    const map = new Map<string, number>()
+    for (const m of messages) {
+      const key = m.toType === 'channel' ? m.to : (m.from === self?.accountId ? m.to : m.from)
+      const prev = map.get(key) ?? 0
+      if (m.ts > prev) map.set(key, m.ts)
+    }
+    return map
+  }, [messages, self?.accountId])
+
+  /** 私聊对象：在线账号 ∪ 历史消息里出现过的人（离线也不丢会话） */
+  const dmList = React.useMemo(() => {
+    const map = new Map<string, string>()
+    for (const a of accounts) map.set(a.accountId, a.name || a.accountId)
+    for (const m of messages) {
+      if (m.toType !== 'account') continue
+      const other = m.from === self?.accountId ? m.to : m.from
+      if (other === '' || other === self?.accountId || other === '*') continue
+      if (!map.has(other)) map.set(other, m.from === self?.accountId ? other : (m.fromName || other))
+    }
+    return [...map.entries()].map(([accountId, name]) => ({ accountId, name }))
+  }, [accounts, messages, self?.accountId])
+
+  const at = (key: string): number => lastActive.get(key) ?? 0
+  const filterHit = (name: string): boolean => sidebarFilter === '' || name.toLowerCase().includes(sidebarFilter.toLowerCase())
+
+  const publicChannel = { id: '*', name: '公共频道', unread: unread['*'] ?? 0, muted: muted.has('*') }
+  const channelItems = [
+    publicChannel,
+    ...channels.filter((c) => c.id !== '*' && c.joined !== false).map((c) => ({ id: c.id, name: c.name, unread: unread[c.id] ?? 0, muted: muted.has(c.id), kind: c.kind })),
+  ]
+  const pendingChannels = channels.filter((c) => c.joined === false)
+  const visibleChannels = channelItems.filter((c) => filterHit(c.name)).sort((a, b) => at(b.id) - at(a.id))
+  const visibleDms = dmList.filter((d) => filterHit(d.name)).sort((a, b) => at(b.accountId) - at(a.accountId))
+
+  const unreadChannels = visibleChannels.filter((c) => c.unread > 0)
+  const unreadDms = visibleDms.filter((d) => (unread[d.accountId] ?? 0) > 0)
+  const restChannels = visibleChannels.filter((c) => c.unread === 0)
+  const restDms = visibleDms.filter((d) => (unread[d.accountId] ?? 0) === 0)
+  const unreadTotal = unreadChannels.length + unreadDms.length
+
   const mentionCandidates = React.useMemo(() => {
     const pool: Array<{ accountId: string; name: string }> = []
     const push = (accountId: string, name: string): void => {
@@ -893,9 +935,9 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         push(member, peer?.name ?? member)
       }
     }
-    for (const a of accounts) push(a.accountId, a.name)
+    for (const a of dmList) push(a.accountId, a.name)
     return pool
-  }, [activeType, active, accounts, activeChannel, self?.accountId])
+  }, [activeType, active, accounts, dmList, activeChannel, self?.accountId])
 
   const mentionMatches = mention === null
     ? []
@@ -1343,45 +1385,57 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
                       React.createElement(Icon, { name: 'close', size: 12 })),
               ),
               React.createElement('div', { className: 'lim-contacts-scroll' },
-                React.createElement('div', { className: 'lim-contacts-group' }, '频道'),
-                sidebarFilter === '' || '公共频道'.includes(sidebarFilter)
-                  ? React.createElement(ContactItem, { icon: 'hash', name: '公共频道', active: active === '*' && activeType === 'channel', unread: unread['*'] ?? 0, muted: muted.has('*'), onClick: () => props.onSelect('*', 'channel') })
+                unreadTotal > 0
+                  ? React.createElement(React.Fragment, null,
+                      React.createElement('div', { className: 'lim-contacts-group' }, `未读 · ${unreadTotal}`),
+                      unreadChannels.map((c) => React.createElement(ContactItem, {
+                        key: 'unread-' + c.id, icon: 'hash', name: c.name, active: active === c.id && activeType === 'channel',
+                        unread: c.unread, muted: c.muted,
+                        onClick: () => props.onSelect(c.id, 'channel'),
+                      })),
+                      unreadDms.map((d) => React.createElement(ContactItem, {
+                        key: 'unread-' + d.accountId, icon: 'dot', name: d.name, active: active === d.accountId && activeType === 'account',
+                        unread: unread[d.accountId] ?? 0, muted: muted.has(d.accountId),
+                        onClick: () => props.onSelect(d.accountId, 'account'),
+                      })),
+                    )
                   : null,
-                channels.filter((c) => c.id !== '*' && (sidebarFilter === '' || c.name.toLowerCase().includes(sidebarFilter.toLowerCase()))).map((c) => c.joined === false
-                  ? React.createElement(ContactItem, {
-                      key: c.id,
-                      icon: 'plus',
-                      name: c.name,
-                      active: false,
-                      unread: 0,
-                      muted: false,
-                      onClick: () => { props.onJoinChannel(c.id); props.onSelect(c.id, 'channel') },
-                    })
-                  : React.createElement(ContactItem, {
-                      key: c.id,
-                      icon: c.kind === 'private' ? 'lock' : 'hash',
-                      name: c.name,
-                      active: active === c.id && activeType === 'channel',
-                      unread: unread[c.id] ?? 0,
-                      muted: muted.has(c.id),
-                      onClick: () => props.onSelect(c.id, 'channel'),
-                      onManage: () => { props.onSelect(c.id, 'channel'); setShowManageModal(true) },
-                      onLeave: () => { props.onLeaveChannel(c.id); if (active === c.id && activeType === 'channel') props.onSelect('*', 'channel') },
-                    })),
+
+                React.createElement('div', { className: 'lim-contacts-group' }, '频道'),
+                restChannels.map((c) => React.createElement(ContactItem, {
+                  key: c.id,
+                  icon: c.id === '*' ? 'hash' : (channels.find((x) => x.id === c.id)?.kind === 'private' ? 'lock' : 'hash'),
+                  name: c.name, active: active === c.id && activeType === 'channel',
+                  unread: c.unread, muted: c.muted,
+                  onClick: () => props.onSelect(c.id, 'channel'),
+                  onManage: c.id === '*' ? undefined : () => { props.onSelect(c.id, 'channel'); setShowManageModal(true) },
+                  onLeave: c.id === '*' ? undefined : () => { props.onLeaveChannel(c.id); if (active === c.id) props.onSelect('*', 'channel') },
+                })),
+                pendingChannels.filter((c) => filterHit(c.name)).map((c) => React.createElement(ContactItem, {
+                  key: 'pending-' + c.id, icon: 'plus', name: c.name, active: false, unread: 0, muted: false,
+                  onClick: () => { props.onJoinChannel(c.id); props.onSelect(c.id, 'channel') },
+                })),
                 React.createElement('button', { className: 'lim-newchannel', onClick: () => setShowChannelModal(true) },
                   React.createElement('span', { className: 'lim-cicon' }, React.createElement(Icon, { name: 'plus', size: 15 })),
                   '新建频道',
                 ),
-              React.createElement('div', { className: 'lim-dm-group' },
-                React.createElement('div', { className: 'lim-contacts-group' }, accounts.length > 0 ? `私聊 · ${accounts.length}` : '私聊'),
-React.createElement('div', { className: 'lim-dm-scroll' },
-                  accounts.length === 0
-                    ? React.createElement('div', { className: 'lim-contact', style: { color: 'var(--lim-faint)', cursor: 'default' } },
-                        React.createElement('span', { className: 'lim-contact-name' }, '同一局域网暂时没人'),
-                      )
-                    : accounts.filter((p) => sidebarFilter === '' || (p.name || p.accountId).toLowerCase().includes(sidebarFilter.toLowerCase())).map((p) => React.createElement(ContactItem, { key: p.accountId, icon: 'dot', name: p.name || p.accountId, active: active === p.accountId && activeType === 'account', unread: unread[p.accountId] ?? 0, muted: muted.has(p.accountId), onClick: () => props.onSelect(p.accountId, 'account') })),
+
+                React.createElement('div', { className: 'lim-dm-group' },
+                  React.createElement('div', { className: 'lim-contacts-group' }, restDms.length > 0 ? `私聊 · ${restDms.length}` : '私聊'),
+                  React.createElement('div', { className: 'lim-dm-scroll' },
+                    restDms.length === 0
+                      ? React.createElement('div', { className: 'lim-contact', style: { color: 'var(--lim-faint)', cursor: 'default' } },
+                          React.createElement('span', { className: 'lim-contact-name' },
+                            sidebarFilter !== '' ? '没有匹配的会话' : (unreadDms.length > 0 ? '未读会话在上方' : '还没有私聊')),
+                        )
+                      : restDms.map((d) => React.createElement(ContactItem, {
+                          key: d.accountId, icon: 'dot', name: d.name,
+                          active: active === d.accountId && activeType === 'account',
+                          unread: unread[d.accountId] ?? 0, muted: muted.has(d.accountId),
+                          onClick: () => props.onSelect(d.accountId, 'account'),
+                        })),
+                  ),
                 ),
-              ),
               ),
               React.createElement('div', { className: 'lim-me' },
                 React.createElement('span', { className: 'lim-me-avatar' }, meInitials),
@@ -1423,10 +1477,10 @@ React.createElement('div', { className: 'lim-dm-scroll' },
                   activeType === 'account'
                     ? (accounts.find((a) => a.accountId === active)?.name || active)
                     : (activeChannel?.name ?? '')),
-                activeType === 'channel' && activeChannel?.description
-                  ? React.createElement('span', { className: 'lim-thread-desc' }, activeChannel.description || (activeChannel.kind === 'private' ? '私有频道' : '所有节点可见'))
-                  : React.createElement('span', { className: 'lim-thread-desc' },
-                      accounts.find((a) => a.accountId === active) !== undefined ? '在线' : '离线或未连接'),
+                React.createElement('span', { className: 'lim-thread-desc' },
+                  activeType === 'account'
+                    ? (accounts.find((a) => a.accountId === active) !== undefined ? '在线' : '离线或未连接')
+                    : (activeChannel?.description || (activeChannel?.kind === 'private' ? '私有频道' : '所有节点可见'))),
                 activeType === 'channel' ? React.createElement('div', { className: 'lim-seg' },
                   React.createElement('button', { className: activeTab === 'messages' ? 'on' : '', 'aria-pressed': activeTab === 'messages', onClick: () => setActiveTab('messages') }, '消息'),
                   React.createElement('button', { className: activeTab === 'files' ? 'on' : '', 'aria-pressed': activeTab === 'files', onClick: () => setActiveTab('files') }, '文件'),
