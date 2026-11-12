@@ -136,6 +136,11 @@ export class HttpGateway {
                   String(body.to ?? '*'),
                   body.toType === 'account' ? 'account' : 'channel',
                   String(body.body ?? ''),
+                  (body.replyTo as Record<string, unknown> | undefined) === undefined ? undefined : {
+                    id: String((body.replyTo as Record<string, unknown>).id ?? ''),
+                    fromName: String((body.replyTo as Record<string, unknown>).fromName ?? '').slice(0, 32),
+                    body: String((body.replyTo as Record<string, unknown>).body ?? '').slice(0, 120),
+                  },
                 )
                 return json(res, 200, { ok: true, message })
               }

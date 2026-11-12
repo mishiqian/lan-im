@@ -3,7 +3,10 @@ import { RECALL_WINDOW_MS, type ChatMessage, type PeerWireMessage, type TargetTy
 import type { HostRuntime } from './runtime.ts'
 
 export function messageToWire(m: ChatMessage): PeerWireMessage {
-  return { t: 'msg', id: m.id, from: m.from, fromName: m.fromName, to: m.to, toType: m.toType, body: m.body, ts: m.ts }
+  return {
+    t: 'msg', id: m.id, from: m.from, fromName: m.fromName, to: m.to, toType: m.toType, body: m.body, ts: m.ts,
+    ...(m.replyTo === undefined ? {} : { replyTo: m.replyTo }),
+  }
 }
 
 /**
@@ -14,12 +17,13 @@ export function messageToWire(m: ChatMessage): PeerWireMessage {
 export class Messaging {
   constructor(private readonly runtime: HostRuntime) {}
 
-  sendMessage(to: string, toType: TargetType, body: string): ChatMessage {
+  sendMessage(to: string, toType: TargetType, body: string, replyTo?: { id: string; fromName: string; body: string }): ChatMessage {
     const text = String(body ?? '').trim()
     if (text === '') throw new Error('消息内容不能为空')
     const message: ChatMessage = {
       id: randomUUID(), from: this.runtime.self.accountId, fromName: this.runtime.self.name,
       to, toType, body: text, ts: Date.now(), kind: 'text', local: true,
+      ...(replyTo === undefined ? {} : { replyTo }),
     }
     if (toType === 'channel') {
       const channelId = this.runtime.channelRegistry.resolveTarget(to)
@@ -38,6 +42,7 @@ export class Messaging {
       void this.runtime.sendViaHub(to, 'text', {
         t: 'msg', id: message.id, from: message.from, fromName: message.fromName,
         to: message.to, toType: message.toType, body: message.body, ts: message.ts,
+        ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
       }).then((sent) => {
         if (!sent) this.runtime.transport.deliverToAccount(to)
       })

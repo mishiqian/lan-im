@@ -163,7 +163,7 @@ export function createHub(options = {}) {
       return
     }
     send(ws, {
-      t: 'lookup/result', v: 1, keyId, found: true, account: node.account,
+      t: 'lookup/result', v: 1, keyId, found: true, account: node.account, name: node.name,
       pubkey: node.pubkey, prekey: node.prekey, prekeySig: node.prekeySig,
       hubId: opts.hubId, online: node.ws?.readyState === 1,
     })
@@ -216,6 +216,7 @@ export function createHub(options = {}) {
     session.authed = true
     nodes.set(session.keyId, {
       account: session.account,
+    name: session.name,
       nodeId: session.nodeId,
       pubkey: session.pubkeyB64u,
       prekey: session.prekey,
@@ -233,8 +234,8 @@ export function createHub(options = {}) {
     // 目录预热：把现有节点告诉新节点，也把新节点告诉现有节点
     for (const [keyId, node] of nodes) {
       if (keyId === session.keyId) continue
-      send(ws, { t: 'presence', v: PROTOCOL_VERSION, keyId, account: node.account, status: node.ws?.readyState === 1 ? 'online' : 'offline', lastSeen: node.seen })
-      send(node.ws, { t: 'presence', v: PROTOCOL_VERSION, keyId: session.keyId, account: session.account, status: 'online', lastSeen: Date.now() })
+      send(ws, { t: 'presence', v: PROTOCOL_VERSION, keyId, account: node.account, name: node.name, status: node.ws?.readyState === 1 ? 'online' : 'offline', lastSeen: node.seen })
+      send(node.ws, { t: 'presence', v: PROTOCOL_VERSION, keyId: session.keyId, account: session.account, name: session.name, status: 'online', lastSeen: Date.now() })
     }
     flushQueue(session.keyId)
   }
@@ -302,6 +303,7 @@ export function createHub(options = {}) {
     session.helloSeen = true
     session.keyId = frame.keyId
     session.account = String(frame.account)
+    session.name = typeof frame.name === 'string' ? frame.name.slice(0, 32) : ''
     session.nodeId = String(frame.nodeId ?? '')
     session.clientNonce = String(frame.nonce ?? '')
     // 公钥随 hello 一起给（规范里 keyId 就是它的指纹）
@@ -358,7 +360,7 @@ export function createHub(options = {}) {
         if (node !== undefined) node.seen = Date.now()
         for (const [keyId, other] of nodes) {
           if (keyId === session.keyId) continue
-          send(other.ws, { t: 'presence', v: PROTOCOL_VERSION, keyId: session.keyId, account: session.account, status: frame.status ?? 'online', lastSeen: Date.now() })
+          send(other.ws, { t: 'presence', v: PROTOCOL_VERSION, keyId: session.keyId, account: session.account, name: session.name, status: frame.status ?? 'online', lastSeen: Date.now() })
         }
         return
       }

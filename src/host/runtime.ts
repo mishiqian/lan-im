@@ -60,8 +60,8 @@ export class HostRuntime {
   private hubClient: HubClient | undefined
   private hubConfig: { url: string; invite?: string; certPin?: string } | undefined
   /** account → 对端公钥目录（来自 lookup/presence） */
-  private readonly hubDir = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string; seen?: number }>()
-  private readonly hubByKeyId = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string; seen?: number }>()
+  private readonly hubDir = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string; seen?: number; name?: string }>()
+  private readonly hubByKeyId = new Map<string, { account: string; keyId: string; pubkey: string; prekey: string; seen?: number; name?: string }>()
   private readonly hubLookups = new Map<string, (entry: any) => void>()
   /** LEP 发送序列号（持久化） */
   private hubSeq = 0
@@ -121,7 +121,7 @@ export class HostRuntime {
     const id = this.identityData
     if (id === undefined || this.hubConfig === undefined || this.hubConfig.url === '') return
     this.hubClient?.close()
-    const client = new HubClient(id, this.hubConfig, { nodeId: this.self.nodeId, accountId: this.self.accountId }, {
+    const client = new HubClient(id, this.hubConfig, { nodeId: this.self.nodeId, accountId: this.self.accountId, name: this.self.name }, {
       onFrame: (frame) => this.onHubFrame(frame),
       onStatus: (status) => {
         this.clients.hubStatus(status)
@@ -210,11 +210,14 @@ export class HostRuntime {
     if (frame.t === 'relay') { void this.onHubRelay(frame); return }
     if (frame.t === 'lookup/result') {
       if (frame.found === true && typeof frame.keyId === 'string') {
+        const previous = this.hubByKeyId.get(String(frame.keyId))
+        const name = String(frame.name ?? '') || previous?.name || ''
         const entry = {
           account: String(frame.account ?? ''),
           keyId: String(frame.keyId),
           pubkey: String(frame.pubkey ?? ''),
           prekey: String(frame.prekey ?? ''),
+          ...(name === '' ? {} : { name }),
         }
         this.rememberPeer(entry)
         this.hubLookups.get(entry.account)?.(entry)
@@ -227,7 +230,8 @@ export class HostRuntime {
       const account = String(frame.account ?? '')
       if (keyId === '' || account === '') return
       const prev = this.hubByKeyId.get(keyId)
-      this.rememberPeer({ account, keyId, pubkey: prev?.pubkey ?? '', prekey: prev?.prekey ?? '' })
+      const name = String(frame.name ?? '')
+      this.rememberPeer({ account, keyId, pubkey: prev?.pubkey ?? '', prekey: prev?.prekey ?? '', ...(name === '' ? {} : { name }) })
       const entry = this.hubByKeyId.get(keyId)
       if (entry !== undefined) entry.seen = Date.now()
       this.clients.peers(this.hubPeers())
@@ -235,7 +239,7 @@ export class HostRuntime {
     }
   }
 
-  private rememberPeer(entry: { account: string; keyId: string; pubkey: string; prekey: string; seen?: number }): void {
+  private rememberPeer(entry: { account: string; keyId: string; pubkey: string; prekey: string; seen?: number; name?: string }): void {
     if (entry.account !== '') this.hubDir.set(entry.account, entry)
     this.hubByKeyId.set(entry.keyId, entry)
   }
@@ -347,7 +351,7 @@ export class HostRuntime {
   hubPeers(): Array<{ accountId: string; name: string; nodeId: string; ip: string; wsPort: number; lastSeen: number; keyId?: string; trusted?: boolean }> {
     return [...this.hubDir.values()].map((entry) => ({
       accountId: entry.account,
-      name: entry.account,
+      name: entry.name !== undefined && entry.name !== '' ? entry.name : entry.account,
       nodeId: entry.keyId,
       ip: '',
       wsPort: 0,
@@ -383,6 +387,7 @@ export class HostRuntime {
       to: wire.to, toType: wire.toType,
       body: String(wire.body ?? ''), ts: Number(wire.ts ?? Date.now()),
       kind: 'text', local: false,
+      ...(wire.replyTo === undefined ? {} : { replyTo: wire.replyTo }),
     } as any)
   }
 

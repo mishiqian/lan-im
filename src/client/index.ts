@@ -158,9 +158,11 @@ function App(): React.ReactElement {
     return () => { closed = true; if (timer !== undefined) window.clearTimeout(timer); try { wsRef.current?.close() } catch { /* 忽略 */ } }
   }, [])
 
-  const send = (to: string, toType: TargetType, body: string): void => {
+  const send = (to: string, toType: TargetType, body: string, replyTo?: { id: string; fromName: string; body: string }): void => {
     const ws = wsRef.current
-    if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'send', to, toType, body }))
+    if (ws !== null && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: 'send', to, toType, body, ...(replyTo === undefined ? {} : { replyTo }) }))
+    }
   }
   const setName = (name: string): void => { const ws = wsRef.current; if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'setName', name })) }
   const restSetupAccount = async (username: string, displayName: string, password: string): Promise<void> => {

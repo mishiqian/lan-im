@@ -5,6 +5,16 @@ import type { HostRuntime } from './runtime.ts'
  * 浏览器客户端 ↔ 宿主 WebSocket 协议桥。
  * 客户端连接后先收 snapshot，之后按 t 分发到各业务模块。
  */
+/** 客户端传来的引用摘要：只接受必要字段并截断 */
+function normalizeReply(value: unknown): { id: string; fromName: string; body: string } | undefined {
+  if (value === null || typeof value !== 'object') return undefined
+  const v = value as Record<string, unknown>
+  const id = String(v.id ?? '')
+  const body = String(v.body ?? '').slice(0, 120)
+  if (id === '' || body === '') return undefined
+  return { id, fromName: String(v.fromName ?? '').slice(0, 32), body }
+}
+
 export class ClientBridge {
   constructor(private readonly runtime: HostRuntime) {}
 
@@ -34,6 +44,7 @@ export class ClientBridge {
               String(msg.to ?? '*'),
               msg.toType === 'account' ? 'account' : 'channel',
               String(msg.body ?? ''),
+              normalizeReply(msg.replyTo),
             )
           } catch (err: any) {
             this.runtime.clients.error(ws, err?.message ?? String(err))

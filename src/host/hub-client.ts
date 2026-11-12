@@ -59,7 +59,7 @@ export class HubClient {
   constructor(
     private readonly identity: IdentityFile,
     private readonly config: HubConfig,
-    private readonly self: { nodeId: string; accountId: string },
+    private readonly self: { nodeId: string; accountId: string; name?: string },
     private readonly handlers: HubHandlers = {},
   ) {
     this.status = { state: 'offline', url: config.url }
@@ -168,6 +168,7 @@ export class HubClient {
       v: HLP_VERSION,
       nodeId: this.self.nodeId,
       account: this.self.accountId,
+      name: this.self.name,
       keyId: this.identity.keyId,
       pubkey: toBase64Url(this.identity.publicKey),
       ...(this.identity.x25519PublicKey === undefined ? {} : {

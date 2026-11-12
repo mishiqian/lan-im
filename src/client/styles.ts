@@ -104,16 +104,31 @@ export const CSS = `
 .lim-searchbar{flex:none;display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--lim-border);background:var(--lim-bg)}
 .lim-messages{flex:1;overflow-y:auto;padding:16px 20px 10px;display:flex;flex-direction:column}
 .lim-messages-inner{width:100%;max-width:600px;margin:auto auto 0;display:flex;flex-direction:column;gap:12px}
-.lim-msg{max-width:86%;align-self:flex-start;display:flex;flex-direction:column;gap:4px}
+.lim-msg{max-width:86%;align-self:flex-start;display:flex;align-items:flex-start;gap:8px;position:relative;padding-bottom:26px;margin-bottom:-26px}
+.lim-msg.mine{align-self:flex-end;flex-direction:row-reverse}
 .lim-msg.compact{margin-top:-6px}
-.lim-msg.compact .lim-bubble{border-top-left-radius:5px}
-.lim-msg.mine.compact .lim-bubble{border-top-left-radius:14px;border-top-right-radius:5px}
-.lim-msg.mine{align-self:flex-end;align-items:flex-end}
-.lim-msg-meta{font-size:11px;color:var(--lim-faint);display:flex;gap:7px;align-items:center;padding:0 2px}
+.lim-msg-avatar{width:28px;height:28px;flex:none;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--lim-accent) 20%,var(--lim-surface));color:var(--lim-accent);font-size:11px;font-weight:700;margin-top:2px}
+.lim-msg-avatar.hidden{visibility:hidden}
+.lim-msg.mine .lim-msg-avatar{background:var(--lim-accent-solid);color:var(--lim-on-accent)}
+.lim-msg-main{display:flex;flex-direction:column;gap:4px;min-width:0;align-items:flex-start}
+.lim-msg.mine .lim-msg-main{align-items:flex-end}
+.lim-msg-meta{font-size:11.5px;color:var(--lim-faint);display:flex;gap:7px;align-items:center;padding:0 2px}
 .lim-msg-meta b{font-weight:600;color:var(--lim-muted)}
-.lim-msg.mine .lim-msg-meta{flex-direction:row-reverse}
+.lim-msg.mine .lim-msg-meta{justify-content:flex-end}
+.lim-bubble-wrap{position:relative;display:flex}
+.lim-msg-tools{position:absolute;bottom:2px;right:0;display:flex;gap:1px;padding:2px;border-radius:8px;background:var(--lim-surface);border:1px solid var(--lim-border);box-shadow:0 6px 18px rgba(0,0,0,.28);opacity:0;pointer-events:none;transition:opacity .12s ease}
+.lim-msg.mine .lim-msg-tools{right:auto;left:0}
+.lim-msg:hover .lim-msg-tools,.lim-msg-tools:focus-within{opacity:1;pointer-events:auto}
+.lim-tool{display:grid;place-items:center;width:26px;height:24px;border:none;border-radius:6px;background:transparent;color:var(--lim-muted);cursor:pointer}
+.lim-tool:hover{background:var(--lim-hover);color:var(--lim-fg)}
+.lim-tool.danger:hover{color:var(--lim-danger)}
+.lim-tool:focus-visible{outline:2px solid var(--lim-accent);outline-offset:-2px}
 .lim-bubble{padding:9px 13px;border-radius:14px;border-bottom-left-radius:5px;background:var(--lim-surface);color:var(--lim-fg);font-size:14px;line-height:1.62;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}
 .lim-msg.mine .lim-bubble{background:var(--lim-accent-solid);color:var(--lim-on-accent);border-radius:14px;border-bottom-right-radius:5px}
+.lim-quote{display:flex;flex-direction:column;gap:2px;margin-bottom:7px;padding:6px 9px;border-radius:8px;background:color-mix(in srgb,var(--lim-fg) 10%,transparent);font-size:12px;line-height:1.5;max-width:100%}
+.lim-msg.mine .lim-quote{background:color-mix(in srgb,#000 16%,transparent)}
+.lim-quote-name{font-weight:600;color:inherit;opacity:.95}
+.lim-quote-body{opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lim-bubble.recalled{font-style:italic;opacity:.55}
 .lim-msg-act{flex:none;font-size:11px;color:var(--lim-faint);cursor:pointer;opacity:0;background:none;border:none;padding:0 3px}
 .lim-msg:hover .lim-msg-act,.lim-msg-act:focus-visible{opacity:1}
@@ -140,6 +155,12 @@ export const CSS = `
 
 /* ---------- 输入区 ---------- */
 .lim-inputbar{flex:none;display:flex;align-items:flex-end;gap:6px;padding:10px 12px 14px;background:var(--lim-bg)}
+.lim-replybar{flex:none;display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--lim-surface);border-top:1px solid var(--lim-border)}
+.lim-replybar-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lim-replybar-name{font-size:11.5px;color:var(--lim-accent);font-weight:600}
+.lim-replybar-body{font-size:11.5px;color:var(--lim-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lim-replybar-x{display:grid;place-items:center;width:22px;height:22px;flex:none;border:none;border-radius:6px;background:transparent;color:var(--lim-faint);cursor:pointer}
+.lim-replybar-x:hover{background:var(--lim-hover);color:var(--lim-fg)}
 .lim-editbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 14px;font-size:12px;color:var(--lim-muted);background:var(--lim-accent-weak);border-top:1px solid var(--lim-border)}
 .lim-editbar button{border:none;background:none;color:var(--lim-accent);font:inherit;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px}
 .lim-editbar button:hover{background:var(--lim-hover)}
@@ -161,7 +182,7 @@ export const CSS = `
 .lim-input::placeholder{color:var(--lim-faint)}
 .lim-input:hover{border-color:var(--lim-border)}
 .lim-input:focus{border-color:var(--lim-accent);box-shadow:0 0 0 3px var(--lim-accent-weak)}
-.lim-send{display:grid;place-items:center;height:36px;min-width:40px;padding:0 10px;border:none;border-radius:10px;background:var(--lim-accent-solid);color:var(--lim-on-accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:filter .12s ease}
+.lim-send{display:grid;place-items:center;height:36px;min-width:38px;padding:0 9px;border:none;border-radius:10px;background:var(--lim-accent-solid);color:var(--lim-on-accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:filter .12s ease}
 .lim-send:hover{filter:brightness(1.12)}
 .lim-send:focus-visible{outline:2px solid var(--lim-accent);outline-offset:2px}
 .lim-send:disabled{background:var(--lim-hover);color:var(--lim-faint);cursor:not-allowed;filter:none}

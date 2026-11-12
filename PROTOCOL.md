@@ -88,6 +88,7 @@ RELAY-PRD 里只有几个帧名，那不是协议，只是草图。草图不能�
   "hubId": "hubA.example",
   "nodeId": "6f1e2a3c-0000-4a00-9000-000000000001",
   "account": "alice",
+  "name": "Alice",
   "keyId": "KZDVVJ2UMNDUYAUF",
   "prekey": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
   "prekeySig": "…",
@@ -100,6 +101,7 @@ RELAY-PRD 里只有几个帧名，那不是协议，只是草图。草图不能�
 - `pubkey`：Ed25519 身份的 SPKI DER（base64url）。枢纽据此校验 `keyId = base32(sha256(raw32))[:16]` 与后续签名
 - `prekey`：X25519 公钥（32 字节 base64url）
 - `prekeySig`：`Ed25519(identity, "lanim-prekey-v1\0" || keyId || prekey)`
+- `name`（可选，≤32 字符）：显示名，仅用于界面展示；权限判断一律用 `account`
 - 首次注册需要 `invite`；已注册节点可省略
 
 **challenge（枢纽 → 节点）**
@@ -262,7 +264,7 @@ ct, tag = AES-256-GCM(key, nonce, plaintext, AAD)
 
 | kind | plaintext 结构 |
 |---|---|
-| `text` | `{t:"msg"|"recall"|"edit", …}`（与现有 msg/recall/edit 帧同构） |
+| `text` | `{t:"msg"|"recall"|"edit", …}`（与现有 msg/recall/edit 帧同构）；`msg` 可带 `replyTo:{id,fromName,body}` 表示引用回复 |
 | `presence` | `{t:"presence", status, typing?}` |
 | `channel` | `{t:"channelAdd"|"channelUpdate"|…}` |
 | `file-meta` | `{t:"file", name, size, mime, sha256, totalChunks}` |

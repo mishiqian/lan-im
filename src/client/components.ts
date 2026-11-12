@@ -49,6 +49,18 @@ const ICON_PATHS: Record<string, React.ReactNode> = {
   upload: React.createElement(React.Fragment, null,
     React.createElement('path', { d: 'M12 19V5' }),
     React.createElement('path', { d: 'm6 11 6-6 6 6' })),
+  reply: React.createElement(React.Fragment, null,
+    React.createElement('path', { d: 'M9 7 4 12l5 5' }),
+    React.createElement('path', { d: 'M4 12h9a6 6 0 0 1 6 6v1' })),
+  copy: React.createElement(React.Fragment, null,
+    React.createElement('rect', { x: 9, y: 9, width: 11, height: 11, rx: 2 }),
+    React.createElement('path', { d: 'M5 15V5a1 1 0 0 1 1-1h9' })),
+  edit: React.createElement(React.Fragment, null,
+    React.createElement('path', { d: 'M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z' }),
+    React.createElement('path', { d: 'm14.5 6.5 3 3' })),
+  send: React.createElement(React.Fragment, null,
+    React.createElement('path', { d: 'm4 12 16-8-6 16-3-6z' }),
+    React.createElement('path', { d: 'm11 14 9-10' })),
 }
 
 export function Icon(props: { name: keyof typeof ICON_PATHS & string; size?: number }): React.ReactElement {
@@ -93,28 +105,75 @@ export function ContactItem(props: { icon: string; name: string; active: boolean
   )
 }
 
-export function MessageBubble(props: { message: ChatMessage; selfAccountId: string; onRecall: (id: string) => void; onEdit: (id: string) => void; compact?: boolean }): React.ReactElement {
+export function MessageBubble(props: {
+  message: ChatMessage
+  selfAccountId: string
+  onRecall: (id: string) => void
+  onEdit: (id: string) => void
+  onReply: (message: ChatMessage) => void
+  compact?: boolean
+}): React.ReactElement {
   const message = props.message
   if (message.kind === 'system') {
     return React.createElement('div', { className: 'lim-sys' }, message.body)
   }
   const mine = message.local || message.from === props.selfAccountId
+  const compact = props.compact === true
+  const initials = (message.fromName || message.from || '?').trim().slice(0, 1).toUpperCase()
+
+  const avatar = React.createElement('div', { className: 'lim-msg-avatar' + (compact ? ' hidden' : ''), 'aria-hidden': 'true' }, initials)
+  const meta = compact
+    ? null
+    : React.createElement('div', { className: 'lim-msg-meta' },
+        React.createElement('b', null, message.fromName || message.from),
+        React.createElement('span', null, formatTime(message.ts)),
+        message.edited === true ? React.createElement('span', null, '已编辑') : null,
+        mine && message.toType === 'account' && message.status === 'delivered' ? React.createElement('span', null, '已送达') : null,
+      )
+
+  const quote = message.replyTo === undefined
+    ? null
+    : React.createElement('div', { className: 'lim-quote' },
+        React.createElement('span', { className: 'lim-quote-name' }, `@${message.replyTo.fromName || '对方'}`),
+        React.createElement('span', { className: 'lim-quote-body' }, message.replyTo.body),
+      )
+
+  const tools = React.createElement('div', { className: 'lim-msg-tools' },
+    React.createElement('button', {
+      className: 'lim-tool', title: '回复', 'aria-label': '回复这条消息',
+      onClick: () => props.onReply(message),
+    }, React.createElement(Icon, { name: 'reply', size: 13 })),
+    React.createElement('button', {
+      className: 'lim-tool', title: '复制', 'aria-label': '复制内容',
+      onClick: () => { void navigator.clipboard?.writeText(message.body).catch(() => {}) },
+    }, React.createElement(Icon, { name: 'copy', size: 13 })),
+    mine && !message.recalled
+      ? React.createElement('button', { className: 'lim-tool', title: '编辑', 'aria-label': '编辑', onClick: () => props.onEdit(message.id) }, React.createElement(Icon, { name: 'edit', size: 13 }))
+      : null,
+    mine && !message.recalled
+      ? React.createElement('button', { className: 'lim-tool danger', title: '撤回', 'aria-label': '撤回', onClick: () => props.onRecall(message.id) }, React.createElement(Icon, { name: 'close', size: 13 }))
+      : null,
+  )
+
   if (message.recalled) {
-    return React.createElement('div', { className: 'lim-msg' + (mine ? ' mine' : '') },
-      React.createElement('div', { className: 'lim-msg-meta' }, `${message.fromName} · ${formatTime(message.ts)}`),
-      React.createElement('div', { className: 'lim-bubble recalled' }, mine ? '你撤回了一条消息' : '对方撤回了一条消息'),
+    return React.createElement('div', { className: 'lim-msg' + (mine ? ' mine' : '') + (compact ? ' compact' : '') },
+      avatar,
+      React.createElement('div', { className: 'lim-msg-main' },
+        meta,
+        React.createElement('div', { className: 'lim-bubble recalled' }, mine ? '你撤回了一条消息' : '对方撤回了一条消息'),
+      ),
     )
   }
-  const statusText = message.status === 'delivered' ? '已送达' : ''
-  const compact = props.compact === true
+
   return React.createElement('div', { className: 'lim-msg' + (mine ? ' mine' : '') + (compact ? ' compact' : '') },
-    compact ? null : React.createElement('div', { className: 'lim-msg-meta' },
-      React.createElement('span', null, `${message.fromName} · ${formatTime(message.ts)}${message.edited ? ' · 已编辑' : ''}`),
-      mine && message.toType === 'account' && statusText !== '' ? React.createElement('span', null, statusText) : null,
-      mine && !message.recalled ? React.createElement('span', { className: 'lim-msg-act', onClick: () => props.onRecall(message.id) }, '撤回') : null,
-      mine && !message.recalled ? React.createElement('span', { className: 'lim-msg-act', onClick: () => props.onEdit(message.id) }, '编辑') : null,
+    avatar,
+    React.createElement('div', { className: 'lim-msg-main' },
+      meta,
+      React.createElement('div', { className: 'lim-bubble-wrap' },
+        React.createElement('div', { className: 'lim-bubble' }, quote, message.body),
+        tools,
+      ),
     ),
-    React.createElement('div', { className: 'lim-bubble' }, message.body),
   )
 }
 
@@ -122,22 +181,33 @@ export function FileBubble(props: { file: FileInfo; selfAccountId: string }): Re
   const mine = props.file.from === props.selfAccountId
   const url = `/lan-im/files/${props.file.id}`
   const isImage = (props.file.mime ?? '').startsWith('image/')
-  return React.createElement('div', { className: 'lim-file' + (mine ? ' mine' : '') },
-    isImage
-      ? React.createElement('div', { className: 'lim-file-body' },
-          React.createElement('img', { className: 'lim-file-img', src: url, alt: props.file.name }),
-          React.createElement('div', { className: 'lim-file-caption' }, `${props.file.name} · ${formatSize(props.file.size)} · `,
-            React.createElement('a', { className: 'lim-file-dl', href: url, download: props.file.name, title: '下载' }, '下载'),
-          ),
-        )
-      : React.createElement(React.Fragment, null,
-          React.createElement('span', { className: 'lim-file-icon' }, React.createElement(Icon, { name: 'file', size: 16 })),
-          React.createElement('div', { className: 'lim-file-meta' },
-            React.createElement('div', { className: 'lim-file-name' }, props.file.name),
-            React.createElement('div', { className: 'lim-file-size' }, `${props.file.fromName} · ${formatSize(props.file.size)} · ${formatTime(props.file.ts)}`),
-          ),
-          React.createElement('a', { className: 'lim-file-dl', href: url, download: props.file.name, title: '下载', 'aria-label': '下载' }, React.createElement(Icon, { name: 'download', size: 15 })),
+  const initials = (props.file.fromName || props.file.from || '?').trim().slice(0, 1).toUpperCase()
+  const avatar = React.createElement('div', { className: 'lim-msg-avatar', 'aria-hidden': 'true' }, initials)
+  const meta = React.createElement('div', { className: 'lim-msg-meta' },
+    React.createElement('b', null, props.file.fromName || props.file.from),
+    React.createElement('span', null, formatTime(props.file.ts)),
+  )
+  const body = isImage
+    ? React.createElement('div', { className: 'lim-file-body' },
+        React.createElement('img', { className: 'lim-file-img', src: url, alt: props.file.name }),
+        React.createElement('div', { className: 'lim-file-caption' }, `${props.file.name} · ${formatSize(props.file.size)} · `,
+          React.createElement('a', { className: 'lim-file-dl', href: url, download: props.file.name, title: '下载' }, '下载'),
         ),
+      )
+    : React.createElement(React.Fragment, null,
+        React.createElement('span', { className: 'lim-file-icon' }, React.createElement(Icon, { name: 'file', size: 16 })),
+        React.createElement('div', { className: 'lim-file-meta' },
+          React.createElement('div', { className: 'lim-file-name' }, props.file.name),
+          React.createElement('div', { className: 'lim-file-size' }, `${formatSize(props.file.size)}`),
+        ),
+        React.createElement('a', { className: 'lim-file-dl', href: url, download: props.file.name, title: '下载', 'aria-label': '下载' }, React.createElement(Icon, { name: 'download', size: 15 })),
+      )
+  return React.createElement('div', { className: 'lim-msg' + (mine ? ' mine' : '') },
+    avatar,
+    React.createElement('div', { className: 'lim-msg-main' },
+      meta,
+      React.createElement('div', { className: 'lim-file' + (mine ? ' mine' : '') }, body),
+    ),
   )
 }
 
@@ -505,7 +575,7 @@ export interface ChatWindowProps {
   activeType: TargetType
   searchResults: ChatMessage[] | null
   onSelect: (id: string, type: TargetType) => void
-  onSend: (to: string, toType: TargetType, body: string) => void
+  onSend: (to: string, toType: TargetType, body: string, replyTo?: { id: string; fromName: string; body: string }) => void
   onSetName: (name: string) => void
   onSetupAccount: (username: string, displayName: string, password: string) => void
   onSetupPsk: (psk: string) => void
@@ -560,6 +630,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
   const [draft, setDraft] = React.useState('')
   const composerRef = React.useRef<HTMLTextAreaElement | null>(null)
   const [dragging, setDragging] = React.useState(false)
+  const [replyTarget, setReplyTarget] = React.useState<ChatMessage | null>(null)
   React.useEffect(() => {
     const el = composerRef.current
     if (el === null) return
@@ -657,9 +728,14 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
       props.onEdit(editingId, text)
       setEditingId(null)
     } else {
-      props.onSend(active, activeType, text)
+      props.onSend(active, activeType, text, replyTarget === null ? undefined : {
+        id: replyTarget.id,
+        fromName: replyTarget.fromName || replyTarget.from,
+        body: replyTarget.body.slice(0, 120),
+      })
     }
     setDraft('')
+    setReplyTarget(null)
   }
 
   const onHeaderPointerDown = (e: React.PointerEvent): void => {
@@ -768,7 +844,12 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
             const compact = prevMsg !== undefined
               && prevMsg.from === item.m.from
               && Math.abs(item.m.ts - prevMsg.ts) < 5 * 60 * 1000
-            return React.createElement(MessageBubble, { key: item.m.id, message: item.m, compact, selfAccountId: self?.accountId ?? '', onRecall: props.onRecall, onEdit: (id) => { setEditingId(id); setDraft(item.m.body) } })
+            return React.createElement(MessageBubble, {
+              key: item.m.id, message: item.m, compact, selfAccountId: self?.accountId ?? '',
+              onRecall: props.onRecall,
+              onEdit: (id) => { setEditingId(id); setReplyTarget(null); setDraft(item.m.body) },
+              onReply: (m) => { setReplyTarget(m); setEditingId(null); window.setTimeout(() => composerRef.current?.focus(), 0) },
+            })
           }))
 
   const fileList = activeType !== 'channel' || channelShared.length === 0
@@ -782,6 +863,16 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
       )
 
   const inputBar = needSetup || activeTab === 'files' ? null : React.createElement(React.Fragment, null,
+    replyTarget !== null
+      ? React.createElement('div', { className: 'lim-replybar' },
+          React.createElement('div', { className: 'lim-replybar-text' },
+            React.createElement('span', { className: 'lim-replybar-name' }, `回复 @${replyTarget.fromName || replyTarget.from}`),
+            React.createElement('span', { className: 'lim-replybar-body' }, replyTarget.body),
+          ),
+          React.createElement('button', { className: 'lim-replybar-x', title: '取消引用', 'aria-label': '取消引用', onClick: () => setReplyTarget(null) },
+            React.createElement(Icon, { name: 'close', size: 13 })),
+        )
+      : null,
     editingId !== null
       ? React.createElement('div', { className: 'lim-editbar' },
           React.createElement('span', null, '正在编辑这条消息'),
@@ -820,7 +911,9 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
       React.createElement('button', {
         className: 'lim-send' + (draft.trim() === '' ? ' ghost' : ''), disabled: !connected || (draft.trim() === '' && editingId === null),
         onClick: send, title: !connected ? '与宿主断开，暂不能发送' : '发送（回车）',
-      }, editingId !== null ? '保存' : '发送'),
+      }, editingId !== null
+        ? '保存'
+        : React.createElement(Icon, { name: 'send', size: 16 })),
     ),
   )
 
