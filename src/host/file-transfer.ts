@@ -47,6 +47,11 @@ export class FileTransfer {
     })
   }
 
+  /** 客户端取消上传：丢掉已收分片，不再等 fileEnd */
+  handleCancel(uploadId: string): void {
+    this.uploads.delete(uploadId)
+  }
+
   handleChunk(msg: any): void {
     const up = this.uploads.get(msg.uploadId)
     if (up !== undefined) up.chunks.set(Number(msg.seq) || 0, String(msg.data ?? ''))

@@ -106,6 +106,8 @@ export class ClientBridge {
           this.runtime.fileTransfer.handleStart(ws, msg)
         } else if (msg.t === 'fileChunk') {
           this.runtime.fileTransfer.handleChunk(msg)
+        } else if (msg.t === 'fileCancel') {
+          this.runtime.fileTransfer.handleCancel(String(msg.uploadId ?? ''))
         } else if (msg.t === 'fileEnd') {
           void this.runtime.fileTransfer.handleEnd(ws, msg)
         }

@@ -134,7 +134,7 @@ export function FileBubble(props: { file: FileInfo; selfAccountId: string }): Re
           React.createElement('span', { className: 'lim-file-icon' }, React.createElement(Icon, { name: 'file', size: 16 })),
           React.createElement('div', { className: 'lim-file-meta' },
             React.createElement('div', { className: 'lim-file-name' }, props.file.name),
-            React.createElement('div', { className: 'lim-file-size' }, `${props.file.fromName} · ${formatSize(props.file.size)}`),
+            React.createElement('div', { className: 'lim-file-size' }, `${props.file.fromName} · ${formatSize(props.file.size)} · ${formatTime(props.file.ts)}`),
           ),
           React.createElement('a', { className: 'lim-file-dl', href: url, download: props.file.name, title: '下载', 'aria-label': '下载' }, React.createElement(Icon, { name: 'download', size: 15 })),
         ),
@@ -519,6 +519,8 @@ export interface ChatWindowProps {
   onRecall: (id: string) => void
   onEdit: (id: string, body: string) => void
   onSendFile: (file: File, to: string, toType: TargetType) => void
+  uploads: Record<string, { name: string; size: number; sent: number; to: string; toType: TargetType; cancelled?: boolean }>
+  onCancelUpload: (uploadId: string) => void
   onSendSharedFile: (file: File, channelId: string) => void
   onToggleMute: (id: string) => void
   onCreateChannel: (name: string, kind: ChannelKind, description?: string) => void
@@ -556,6 +558,15 @@ export function SharedFileBubble(props: { file: SharedFile; self: SelfInfo | nul
 export function ChatWindow(props: ChatWindowProps): React.ReactElement {
   const { self, peers, channels, messages, files, sharedFiles, logs, connected, unread, muted, active, activeType, searchResults } = props
   const [draft, setDraft] = React.useState('')
+  const composerRef = React.useRef<HTMLTextAreaElement | null>(null)
+  const [dragging, setDragging] = React.useState(false)
+  React.useEffect(() => {
+    const el = composerRef.current
+    if (el === null) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 132)}px`
+    el.style.overflowY = el.scrollHeight > 132 ? 'auto' : 'hidden'
+  }, [draft])
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [dark, setDark] = React.useState<boolean>(isDark)
   const [showLog, setShowLog] = React.useState(false)
@@ -770,20 +781,47 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         channelShared.map((f) => React.createElement(SharedFileBubble, { key: f.id, file: f, self, onRemove: props.onRemoveSharedFile })),
       )
 
-  const inputBar = needSetup || activeTab === 'files' ? null : React.createElement('div', { className: 'lim-inputbar' },
-    React.createElement('label', { className: 'lim-attach', title: '发送文件' },
-      React.createElement(Icon, { name: 'paperclip', size: 17 }),
-      React.createElement('input', { ref: fileRef, type: 'file', style: { display: 'none' }, onChange: (e: any) => { const f = e.target.files?.[0]; if (f) props.onSendFile(f, active, activeType); e.target.value = '' } }),
+  const inputBar = needSetup || activeTab === 'files' ? null : React.createElement(React.Fragment, null,
+    editingId !== null
+      ? React.createElement('div', { className: 'lim-editbar' },
+          React.createElement('span', null, '正在编辑这条消息'),
+          React.createElement('button', {
+            onClick: () => { setEditingId(null); setDraft('') },
+          }, '取消'),
+        )
+      : null,
+    React.createElement('div', { className: 'lim-inputbar' },
+      React.createElement('label', { className: 'lim-attach', title: !connected ? '与宿主断开，暂不能发送文件' : '发送文件（≤20MB，也可拖进来）', style: connected ? undefined : { opacity: 0.45, cursor: 'not-allowed' } },
+        React.createElement(Icon, { name: 'paperclip', size: 18 }),
+        React.createElement('input', { ref: fileRef, type: 'file', style: { display: 'none' }, onChange: (e: any) => { const f = e.target.files?.[0]; if (f) props.onSendFile(f, active, activeType); e.target.value = '' } }),
+      ),
+      React.createElement('textarea', {
+        ref: composerRef, className: 'lim-input lim-composer', rows: 1, value: draft,
+        placeholder: !connected
+          ? '已断开连接，正在重连…'
+          : editingId !== null
+            ? '编辑消息…（回车保存，Esc 取消）'
+            : activeType === 'channel' ? (active === '*' ? '发送到公共频道…' : `发送到 ${activeChannel?.name ?? active}…`) : '发送私聊…',
+        onChange: (e: any) => setDraft(e.target.value),
+        onPaste: (e: any) => {
+          const files: File[] = [...(e.clipboardData?.files ?? [])]
+          if (files.length > 0) { e.preventDefault(); for (const f of files) props.onSendFile(f, active, activeType) }
+        },
+        onCompositionStart: () => { composingRef.current = true },
+        onCompositionEnd: () => { composingRef.current = false },
+        onKeyDown: (e: any) => {
+          if (e.key === 'Escape' && editingId !== null) { setEditingId(null); setDraft(''); return }
+          if (e.key !== 'Enter') return
+          if (composingRef.current || (e.nativeEvent && e.nativeEvent.isComposing)) return
+          if (e.shiftKey) return
+          e.preventDefault(); send()
+        },
+      }),
+      React.createElement('button', {
+        className: 'lim-send' + (draft.trim() === '' ? ' ghost' : ''), disabled: !connected || (draft.trim() === '' && editingId === null),
+        onClick: send, title: !connected ? '与宿主断开，暂不能发送' : '发送（回车）',
+      }, editingId !== null ? '保存' : '发送'),
     ),
-    React.createElement('input', {
-      className: 'lim-input', value: draft,
-      placeholder: editingId !== null ? '编辑消息…（回车保存）' : activeType === 'channel' ? (active === '*' ? '发送到公共频道…' : `发送到 ${activeChannel?.name ?? active}…`) : '发送私聊…',
-      onChange: (e: any) => setDraft(e.target.value),
-      onCompositionStart: () => { composingRef.current = true },
-      onCompositionEnd: () => { composingRef.current = false },
-      onKeyDown: (e: any) => { if (e.key === 'Enter' && !composingRef.current && !(e.nativeEvent && e.nativeEvent.isComposing)) send() },
-    }),
-    React.createElement('button', { className: 'lim-send', onClick: send }, editingId !== null ? '保存' : '发送'),
   )
 
   const fileToolbar = needSetup || activeTab !== 'files' ? null : React.createElement('div', { className: 'lim-inputbar' },
@@ -950,7 +988,19 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
   const meInitials = (meName === '' ? '?' : meName).slice(0, 2).toUpperCase()
 
   return React.createElement('div',
-    { className: 'lim-window', style: { left: pos.x, top: pos.y, width: size.w, height: size.h }, ref: rootRef },
+    {
+      className: 'lim-window', style: { left: pos.x, top: pos.y, width: size.w, height: size.h }, ref: rootRef,
+      onDragOver: (e: any) => { if (needSetup) return; e.preventDefault(); if (!dragging) setDragging(true) },
+      onDragLeave: (e: any) => {
+        const next = e.relatedTarget as Node | null
+        if (next === null || !(e.currentTarget as Node).contains(next)) setDragging(false)
+      },
+      onDrop: (e: any) => {
+        e.preventDefault(); setDragging(false)
+        const files: File[] = [...(e.dataTransfer?.files ?? [])]
+        for (const f of files) props.onSendFile(f, active, activeType)
+      },
+    },
     React.createElement('div', { className: 'lim-header', onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp, onPointerCancel: onHeaderPointerUp },
       React.createElement(LanImMark, { size: 20, tile: '#0891B2' }),
       React.createElement('span', { className: 'lim-title' }, '局域网聊天'),
@@ -978,6 +1028,14 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         }, React.createElement(Icon, { name: 'close' })),
       ),
     ),
+    dragging && !needSetup
+      ? React.createElement('div', { className: 'lim-dropzone' },
+          React.createElement('div', { className: 'lim-dropzone-box' },
+            React.createElement(Icon, { name: 'upload', size: 22 }),
+            React.createElement('span', null, `松手发送到「${activeType === 'channel' ? (active === '*' ? '公共频道' : (activeChannel?.name ?? active)) : (accounts.find((a) => a.accountId === active)?.name || active)}」`),
+          ),
+        )
+      : null,
     needSetup
       ? React.createElement(AccountSetup, { connected, onSetup: props.onSetupAccount })
       : React.createElement(React.Fragment, null,
@@ -1069,11 +1127,27 @@ React.createElement('div', { className: 'lim-dm-scroll' },
                   : null,
               ),
               React.createElement('div', { className: 'lim-messages', ref: threadRef },
-                React.createElement('div', { className: 'lim-messages-inner' }, activeTab === 'files' ? fileList : messageList)),
+                React.createElement('div', { className: 'lim-messages-inner' },
+                  activeTab === 'files' ? fileList : messageList,
+                  activeTab === 'files' ? null : Object.entries(props.uploads).map(([id, up]) => React.createElement('div', { key: id, className: 'lim-upload' },
+                    React.createElement('div', { className: 'lim-upload-head' },
+                      React.createElement('span', { className: 'lim-upload-name' }, up.name),
+                      React.createElement('button', {
+                        className: 'lim-upload-x', title: '取消发送', 'aria-label': '取消发送',
+                        onClick: () => props.onCancelUpload(id),
+                      }, React.createElement(Icon, { name: 'close', size: 12 })),
+                    ),
+                    React.createElement('div', { className: 'lim-upload-bar' },
+                      React.createElement('span', { style: { width: `${Math.min(100, Math.round((up.sent / Math.max(1, Math.ceil(up.size / 49152))) * 100))}%` } }),
+                    ),
+                    React.createElement('div', { className: 'lim-upload-sub' },
+                      up.cancelled === true ? '已取消' : `发送中 ${Math.min(100, Math.round((up.sent / Math.max(1, Math.ceil(up.size / 49152))) * 100))}%`),
+                  ))),
               activeTab === 'files' ? fileToolbar : inputBar,
             ),
           ),
         ),
+      ),
     channelModal,
     manageModal,
     profileModal,

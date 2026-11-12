@@ -165,6 +165,7 @@ export type ClientOutMessage =
   | { t: 'fileStart'; uploadId: string; name: string; size: number; mime: string; to: string; toType: TargetType; share?: boolean; channelId?: string }
   | { t: 'fileChunk'; uploadId: string; seq: number; data: string }
   | { t: 'fileEnd'; uploadId: string }
+  | { t: 'fileCancel'; uploadId: string }
 
 /** 宿主 → 客户端 */
 export type HostInMessage =

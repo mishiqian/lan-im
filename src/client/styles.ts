@@ -26,7 +26,7 @@ export const CSS = `
   --lim-on-accent:#ffffff;
   --lim-danger:var(--dsw-alias-state-error-primary,#f87171);
   --lim-ok:var(--dsw-alias-state-success-primary,#34d399);
-  position:fixed;z-index:2147483000;width:480px;max-width:calc(100vw - 16px);height:640px;max-height:calc(100vh - 16px);
+  position:fixed;z-index:2147483000;width:540px;max-width:calc(100vw - 16px);height:640px;max-height:calc(100vh - 16px);
   display:flex;flex-direction:column;background:var(--lim-bg);color:var(--lim-fg);
   border:1px solid var(--lim-border);border-radius:16px;overflow:hidden;
   box-shadow:0 32px 80px rgba(0,0,0,.42),0 4px 12px rgba(0,0,0,.28);
@@ -52,7 +52,7 @@ export const CSS = `
 
 /* ---------- 主体 ---------- */
 .lim-body{flex:1;display:flex;min-height:0}
-.lim-contacts{width:214px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--lim-sidebar);border-right:1px solid var(--lim-border)}
+.lim-contacts{width:188px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--lim-sidebar);border-right:1px solid var(--lim-border)}
 .lim-contacts-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 8px 8px;display:flex;flex-direction:column;gap:2px}
 .lim-contact-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 8px 8px}
 .lim-contacts-scroll::-webkit-scrollbar,.lim-dm-scroll::-webkit-scrollbar,.lim-messages::-webkit-scrollbar,.lim-shared-list::-webkit-scrollbar{width:8px}
@@ -139,15 +139,29 @@ export const CSS = `
 .lim-empty-hint{font-size:12px;color:var(--lim-faint);max-width:260px;line-height:1.7}
 
 /* ---------- 输入区 ---------- */
-.lim-inputbar{flex:none;display:flex;align-items:flex-end;gap:8px;padding:10px 14px 14px;background:var(--lim-bg)}
-.lim-attach{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:10px;color:var(--lim-muted);cursor:pointer}
+.lim-inputbar{flex:none;display:flex;align-items:flex-end;gap:6px;padding:10px 12px 14px;background:var(--lim-bg)}
+.lim-editbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 14px;font-size:12px;color:var(--lim-muted);background:var(--lim-accent-weak);border-top:1px solid var(--lim-border)}
+.lim-editbar button{border:none;background:none;color:var(--lim-accent);font:inherit;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px}
+.lim-editbar button:hover{background:var(--lim-hover)}
+.lim-upload{display:flex;flex-direction:column;gap:6px;align-self:flex-end;width:min(320px,86%);padding:10px 12px;border-radius:12px;background:var(--lim-surface);border:1px solid var(--lim-border)}
+.lim-upload-head{display:flex;align-items:center;gap:8px}
+.lim-upload-name{flex:1;min-width:0;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lim-upload-x{display:grid;place-items:center;width:20px;height:20px;border:none;border-radius:6px;background:transparent;color:var(--lim-faint);cursor:pointer}
+.lim-upload-x:hover{background:var(--lim-hover);color:var(--lim-fg)}
+.lim-upload-bar{height:4px;border-radius:2px;background:var(--lim-hover);overflow:hidden}
+.lim-upload-bar span{display:block;height:100%;background:var(--lim-accent);transition:width .15s ease}
+.lim-upload-sub{font-size:11px;color:var(--lim-faint)}
+.lim-dropzone{position:absolute;inset:0;z-index:60;display:grid;place-items:center;background:color-mix(in srgb,var(--lim-bg) 78%,transparent);backdrop-filter:blur(2px);border:2px dashed var(--lim-accent);border-radius:16px;pointer-events:none}
+.lim-dropzone-box{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--lim-accent);font-size:13px;font-weight:600}
+.lim-attach{display:grid;place-items:center;width:30px;height:34px;flex:none;border-radius:10px;color:var(--lim-muted);cursor:pointer}
 .lim-attach:hover{background:var(--lim-hover);color:var(--lim-fg)}
 .lim-attach:focus-within{outline:2px solid var(--lim-accent);outline-offset:1px}
 .lim-input{flex:1;min-width:0;padding:10px 12px;font:inherit;font-size:13.5px;line-height:1.5;color:var(--lim-fg);background:var(--lim-surface);border:1px solid transparent;border-radius:12px;outline:none}
+.lim-composer{resize:none;max-height:132px;min-height:36px;overflow-y:hidden;font-family:inherit}
 .lim-input::placeholder{color:var(--lim-faint)}
 .lim-input:hover{border-color:var(--lim-border)}
 .lim-input:focus{border-color:var(--lim-accent);box-shadow:0 0 0 3px var(--lim-accent-weak)}
-.lim-send{display:grid;place-items:center;height:36px;min-width:56px;padding:0 14px;border:none;border-radius:10px;background:var(--lim-accent-solid);color:var(--lim-on-accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:filter .12s ease}
+.lim-send{display:grid;place-items:center;height:36px;min-width:40px;padding:0 10px;border:none;border-radius:10px;background:var(--lim-accent-solid);color:var(--lim-on-accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:filter .12s ease}
 .lim-send:hover{filter:brightness(1.12)}
 .lim-send:focus-visible{outline:2px solid var(--lim-accent);outline-offset:2px}
 .lim-send:disabled{background:var(--lim-hover);color:var(--lim-faint);cursor:not-allowed;filter:none}

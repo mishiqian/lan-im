@@ -7,7 +7,7 @@ declare const __LANIM_VERSION__: string
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
-import { API_ROUTE, CHUNK_SIZE, type Channel, type ChannelKind, type ChatMessage, type FileInfo, type Peer, type SelfInfo, type SharedFile, type TargetType } from '../protocol.ts'
+import { API_ROUTE, CHUNK_SIZE, MAX_FILE_SIZE, type Channel, type ChannelKind, type ChatMessage, type FileInfo, type Peer, type SelfInfo, type SharedFile, type TargetType } from '../protocol.ts'
 import { CSS } from './styles.ts'
 import { apiBase, currentApiHost, requestNotif, resolveApiHost, wsUrl } from './format.ts'
 import { ChatWindow, Launcher } from './components.ts'
@@ -38,6 +38,9 @@ function App(): React.ReactElement {
   const [sharedFiles, setSharedFiles] = React.useState<SharedFile[]>([])
   const [logs, setLogs] = React.useState<string[]>([])
   const [connected, setConnected] = React.useState(false)
+  const [uploads, setUploads] = React.useState<Record<string, { name: string; size: number; sent: number; to: string; toType: TargetType; cancelled?: boolean }>>({})
+  const uploadsRef = React.useRef(uploads)
+  uploadsRef.current = uploads
   const [hub, setHub] = React.useState<{ state: 'offline' | 'connecting' | 'online'; url: string; hubId?: string; lastError?: string; managed?: boolean }>({ state: 'offline', url: '' })
   const [unread, setUnread] = React.useState<Record<string, number>>({})
   const [muted, setMuted] = React.useState<Set<string>>(new Set())
@@ -217,20 +220,44 @@ function App(): React.ReactElement {
     const buf = await file.arrayBuffer()
     const total = Math.ceil(file.size / CHUNK_SIZE)
     for (let seq = 0; seq < total; seq++) {
+      // 用户取消或连接断了就停
+      if (uploadsRef.current[uploadId]?.cancelled === true) return
+      if (ws.readyState !== WebSocket.OPEN) {
+        setUploads((prev) => { const next = { ...prev }; delete next[uploadId]; return next })
+        setError(`「${file.name}」发送中断：与宿主断开`)
+        return
+      }
       const bytes = new Uint8Array(buf, seq * CHUNK_SIZE, Math.min(CHUNK_SIZE, file.size - seq * CHUNK_SIZE))
       let bin = ''
       for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
       ws.send(JSON.stringify({ t: 'fileChunk', uploadId, seq, data: btoa(bin) }))
+      if (seq % 4 === 0 || seq === total - 1) {
+        setUploads((prev) => (prev[uploadId] === undefined ? prev : { ...prev, [uploadId]: { ...prev[uploadId], sent: seq + 1 } }))
+      }
     }
     ws.send(JSON.stringify({ t: 'fileEnd', uploadId }))
+    setUploads((prev) => { const next = { ...prev }; delete next[uploadId]; return next })
   }
 
   const sendFile = async (file: File, to: string, toType: TargetType): Promise<void> => {
     const ws = wsRef.current
-    if (ws === null || ws.readyState !== WebSocket.OPEN) return
+    if (ws === null || ws.readyState !== WebSocket.OPEN) { setError('与宿主断开，暂时不能发送文件'); return }
+    if (file.size > MAX_FILE_SIZE) { setError(`「${file.name}」超过 20MB 上限`); return }
+    if (file.size === 0) { setError(`「${file.name}」是空文件`); return }
     const uploadId = 'u' + Math.random().toString(36).slice(2)
+    setUploads((prev) => ({ ...prev, [uploadId]: { name: file.name, size: file.size, sent: 0, to, toType } }))
     ws.send(JSON.stringify({ t: 'fileStart', uploadId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream', to, toType }))
-    await uploadChunks(ws, uploadId, file)
+    void uploadChunks(ws, uploadId, file)
+  }
+
+  const cancelUpload = (uploadId: string): void => {
+    setUploads((prev) => {
+      if (prev[uploadId] === undefined) return prev
+      return { ...prev, [uploadId]: { ...prev[uploadId], cancelled: true } }
+    })
+    const ws = wsRef.current
+    if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'fileCancel', uploadId }))
+    window.setTimeout(() => setUploads((prev) => { const next = { ...prev }; delete next[uploadId]; return next }), 400)
   }
 
   const sendSharedFile = async (file: File, channelId: string): Promise<void> => {
@@ -280,7 +307,7 @@ function App(): React.ReactElement {
     open ? React.createElement(ChatWindow, {
       self, peers, channels, messages, files, sharedFiles, logs, connected, unread, muted, active, activeType, searchResults,
       onSelect: selectConv, onSend: send, onSetName: setName, onSetupAccount: setupAccount, onSetupPsk: setupPsk,
-      onSearch: onSearch, onRecall: recall, onEdit: edit, onSendFile: (f, to, toType) => { void sendFile(f, to, toType) },
+      onSearch: onSearch, onRecall: recall, onEdit: edit, onSendFile: (f, to, toType) => { void sendFile(f, to, toType) }, uploads, onCancelUpload: cancelUpload,
       onSendSharedFile: (f, channelId) => { void sendSharedFile(f, channelId) },
       onSetupPassword: setPassword,
       hub,
