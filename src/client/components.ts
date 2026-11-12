@@ -653,11 +653,28 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
   const { self, peers, channels, messages, files, sharedFiles, logs, connected, unread, muted, active, activeType, searchResults } = props
   const [draft, setDraft] = React.useState('')
   const composerRef = React.useRef<HTMLTextAreaElement | null>(null)
+  React.useEffect(() => {
+    const el = rootRef.current
+    if (el === null || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry !== undefined) setWinWidth(entry.contentRect.width)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const [dragging, setDragging] = React.useState(false)
   const [replyTarget, setReplyTarget] = React.useState<ChatMessage | null>(null)
   /** @ 候选面板：null 表示关闭 */
   const [mention, setMention] = React.useState<{ start: number; query: string; index: number } | null>(null)
   const [mentioned, setMentioned] = React.useState<string[]>([])
+  const [sidebarFilter, setSidebarFilter] = React.useState('')
+  const [sidebarWidth, setSidebarWidth] = React.useState<number>(() => {
+    const saved = Number(window.localStorage.getItem('lanim.sidebarWidth') ?? '')
+    return Number.isFinite(saved) && saved >= 160 && saved <= 340 ? saved : 232
+  })
+  const splitRef = React.useRef<{ sx: number; sw: number } | null>(null)
+
   React.useEffect(() => {
     const el = composerRef.current
     if (el === null) return
@@ -681,7 +698,9 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
   const [manageDesc, setManageDesc] = React.useState('')
   const [memberDraft, setMemberDraft] = React.useState('')
   const [pos, setPos] = React.useState(() => ({ x: Math.max(8, window.innerWidth - 480), y: Math.max(8, window.innerHeight - 640) }))
-  const [size, setSize] = React.useState({ w: 480, h: 640 })
+  const [size, setSize] = React.useState({ w: 720, h: 620 })
+  const [winWidth, setWinWidth] = React.useState(720)
+  const effectiveSidebar = winWidth < 520 ? 148 : Math.min(sidebarWidth, Math.max(160, winWidth - 260))
   const dragRef = React.useRef<{ dx: number; dy: number } | null>(null)
   const resizeRef = React.useRef<{ sx: number; sy: number; sw: number; sh: number } | null>(null)
   const threadRef = React.useRef<HTMLDivElement | null>(null)
@@ -822,6 +841,23 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     onPointerMove: onResizePointerMove,
     onPointerUp: onResizePointerUp,
     onPointerCancel: onResizePointerUp,
+  }
+
+  const onSplitDown = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    splitRef.current = { sx: e.clientX, sw: effectiveSidebar }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+  const onSplitMove = (e: React.PointerEvent): void => {
+    const r = splitRef.current
+    if (r === null) return
+    const next = Math.min(340, Math.max(160, r.sw + (e.clientX - r.sx)))
+    setSidebarWidth(next)
+  }
+  const onSplitUp = (): void => {
+    if (splitRef.current === null) return
+    splitRef.current = null
+    window.localStorage.setItem('lanim.sidebarWidth', String(sidebarWidth))
   }
 
   const createChannelSubmit = (): void => {
@@ -1221,7 +1257,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         for (const f of files) props.onSendFile(f, active, activeType)
       },
     },
-    React.createElement('div', { className: 'lim-header', onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp, onPointerCancel: onHeaderPointerUp },
+    needSetup ? React.createElement('div', { className: 'lim-header', onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp, onPointerCancel: onHeaderPointerUp },
       React.createElement(LanImMark, { size: 20, tile: '#0891B2' }),
       React.createElement('span', { className: 'lim-title' }, '局域网聊天'),
 
@@ -1247,7 +1283,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
           onClick: props.onClose,
         }, React.createElement(Icon, { name: 'close' })),
       ),
-    ),
+    ) : null,
     dragging && !needSetup
       ? React.createElement('div', { className: 'lim-dropzone' },
           React.createElement('div', { className: 'lim-dropzone-box' },
@@ -1267,11 +1303,51 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
             : null,
           searchInput,
           React.createElement('div', { className: 'lim-body' },
-            React.createElement('div', { className: 'lim-contacts' },
+            React.createElement('div', { className: 'lim-contacts', style: { width: effectiveSidebar } },
+              React.createElement('div', { className: 'lim-sidebar-head', onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp, onPointerCancel: onHeaderPointerUp },
+                React.createElement(LanImMark, { size: 18, tile: '#0891B2' }),
+                React.createElement('div', { className: 'lim-sidebar-title' },
+                  React.createElement('span', null, '局域网聊天'),
+                  React.createElement('span', { className: 'lim-sidebar-status' + (connected ? '' : ' off') },
+                    connected ? `${accounts.length + 1} 在线` : '离线'),
+                ),
+                React.createElement('div', { className: 'lim-sidebar-actions' },
+                  React.createElement('button', {
+                    className: 'lim-iconbtn', title: '搜索消息', 'aria-label': '搜索消息', 'aria-pressed': showSearch,
+                    onClick: () => { setShowSearch((v) => !v); if (showSearch) { setSearchKeyword(''); props.onSearch('') } },
+                  }, React.createElement(Icon, { name: 'search', size: 15 })),
+                  React.createElement('button', {
+                    className: 'lim-iconbtn', title: '诊断日志', 'aria-label': '诊断日志', 'aria-pressed': showLog,
+                    onClick: () => setShowLog((v) => !v),
+                  }, React.createElement(Icon, { name: 'activity', size: 15 })),
+                  React.createElement('button', {
+                    className: 'lim-iconbtn', title: '个人中心', 'aria-label': '个人中心',
+                    onClick: () => setShowProfile(true),
+                  }, React.createElement(Icon, { name: 'settings', size: 15 })),
+                  React.createElement('button', {
+                    className: 'lim-iconbtn', title: '关闭（Esc）', 'aria-label': '关闭聊天窗',
+                    onClick: props.onClose,
+                  }, React.createElement(Icon, { name: 'close', size: 15 })),
+                ),
+              ),
+              React.createElement('div', { className: 'lim-sidebar-filter' },
+                React.createElement(Icon, { name: 'search', size: 13 }),
+                React.createElement('input', {
+                  className: 'lim-filter-input', value: sidebarFilter, placeholder: '搜索会话',
+                  onChange: (e: any) => setSidebarFilter(e.target.value),
+                  'aria-label': '搜索会话',
+                }),
+                sidebarFilter === ''
+                  ? null
+                  : React.createElement('button', { className: 'lim-filter-clear', title: '清除', 'aria-label': '清除筛选', onClick: () => setSidebarFilter('') },
+                      React.createElement(Icon, { name: 'close', size: 12 })),
+              ),
               React.createElement('div', { className: 'lim-contacts-scroll' },
                 React.createElement('div', { className: 'lim-contacts-group' }, '频道'),
-                React.createElement(ContactItem, { icon: 'hash', name: '公共频道', active: active === '*' && activeType === 'channel', unread: unread['*'] ?? 0, muted: muted.has('*'), onClick: () => props.onSelect('*', 'channel') }),
-                channels.filter((c) => c.id !== '*').map((c) => c.joined === false
+                sidebarFilter === '' || '公共频道'.includes(sidebarFilter)
+                  ? React.createElement(ContactItem, { icon: 'hash', name: '公共频道', active: active === '*' && activeType === 'channel', unread: unread['*'] ?? 0, muted: muted.has('*'), onClick: () => props.onSelect('*', 'channel') })
+                  : null,
+                channels.filter((c) => c.id !== '*' && (sidebarFilter === '' || c.name.toLowerCase().includes(sidebarFilter.toLowerCase()))).map((c) => c.joined === false
                   ? React.createElement(ContactItem, {
                       key: c.id,
                       icon: 'plus',
@@ -1303,7 +1379,7 @@ React.createElement('div', { className: 'lim-dm-scroll' },
                     ? React.createElement('div', { className: 'lim-contact', style: { color: 'var(--lim-faint)', cursor: 'default' } },
                         React.createElement('span', { className: 'lim-contact-name' }, '同一局域网暂时没人'),
                       )
-                    : accounts.map((p) => React.createElement(ContactItem, { key: p.accountId, icon: 'dot', name: p.name || p.accountId, active: active === p.accountId && activeType === 'account', unread: unread[p.accountId] ?? 0, muted: muted.has(p.accountId), onClick: () => props.onSelect(p.accountId, 'account') })),
+                    : accounts.filter((p) => sidebarFilter === '' || (p.name || p.accountId).toLowerCase().includes(sidebarFilter.toLowerCase())).map((p) => React.createElement(ContactItem, { key: p.accountId, icon: 'dot', name: p.name || p.accountId, active: active === p.accountId && activeType === 'account', unread: unread[p.accountId] ?? 0, muted: muted.has(p.accountId), onClick: () => props.onSelect(p.accountId, 'account') })),
                 ),
               ),
               ),
@@ -1324,6 +1400,18 @@ React.createElement('div', { className: 'lim-dm-scroll' },
                 }),
               ),
             ),
+            React.createElement('div', {
+              className: 'lim-splitter', role: 'separator', 'aria-orientation': 'vertical', tabIndex: 0,
+              'aria-label': '调整侧栏宽度', title: '拖动调整侧栏宽度',
+              onPointerDown: onSplitDown, onPointerMove: onSplitMove, onPointerUp: onSplitUp, onPointerCancel: onSplitUp,
+              onKeyDown: (e: any) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+                e.preventDefault()
+                const next = Math.min(340, Math.max(160, sidebarWidth + (e.key === 'ArrowRight' ? 16 : -16)))
+                setSidebarWidth(next)
+                window.localStorage.setItem('lanim.sidebarWidth', String(next))
+              },
+            }),
             React.createElement('div', { className: 'lim-thread' },
               React.createElement('div', { className: 'lim-thread-title' },
                 activeType === 'account'
@@ -1336,8 +1424,9 @@ React.createElement('div', { className: 'lim-dm-scroll' },
                     ? (accounts.find((a) => a.accountId === active)?.name || active)
                     : (activeChannel?.name ?? '')),
                 activeType === 'channel' && activeChannel?.description
-                  ? React.createElement('span', { className: 'lim-thread-desc' }, activeChannel.description)
-                  : React.createElement('span', { className: 'lim-thread-desc' }),
+                  ? React.createElement('span', { className: 'lim-thread-desc' }, activeChannel.description || (activeChannel.kind === 'private' ? '私有频道' : '所有节点可见'))
+                  : React.createElement('span', { className: 'lim-thread-desc' },
+                      accounts.find((a) => a.accountId === active) !== undefined ? '在线' : '离线或未连接'),
                 activeType === 'channel' ? React.createElement('div', { className: 'lim-seg' },
                   React.createElement('button', { className: activeTab === 'messages' ? 'on' : '', 'aria-pressed': activeTab === 'messages', onClick: () => setActiveTab('messages') }, '消息'),
                   React.createElement('button', { className: activeTab === 'files' ? 'on' : '', 'aria-pressed': activeTab === 'files', onClick: () => setActiveTab('files') }, '文件'),
@@ -1364,7 +1453,7 @@ React.createElement('div', { className: 'lim-dm-scroll' },
                       up.cancelled === true ? '已取消' : `发送中 ${Math.min(100, Math.round((up.sent / Math.max(1, Math.ceil(up.size / 49152))) * 100))}%`),
                   ))),
               ),
-              activeTab === 'files' ? fileToolbar : inputBar,
+              activeTab === 'files' ? fileToolbar : React.createElement('div', { className: 'lim-composer-dock' }, inputBar),
             ),
           ),
         ),

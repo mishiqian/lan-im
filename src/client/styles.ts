@@ -53,7 +53,27 @@ export const CSS = `
 
 /* ---------- 主体 ---------- */
 .lim-body{flex:1;display:flex;min-height:0}
-.lim-contacts{width:192px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--lim-sidebar);border-right:1px solid var(--lim-border)}
+.lim-contacts{width:232px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--lim-sidebar);border-right:1px solid var(--lim-border)}
+.lim-sidebar-head{flex:none;display:flex;align-items:center;gap:8px;height:56px;padding:0 8px 0 14px;cursor:move;user-select:none;touch-action:none;border-bottom:1px solid var(--lim-border)}
+.lim-sidebar-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lim-sidebar-title>span:first-child{font-size:13px;font-weight:650;letter-spacing:.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lim-sidebar-status{font-size:11px;color:var(--lim-faint);display:flex;align-items:center;gap:4px}
+.lim-sidebar-status::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--lim-ok)}
+.lim-sidebar-status.off::before{background:var(--lim-muted)}
+.lim-sidebar-actions{display:flex;align-items:center;gap:0}
+.lim-sidebar-actions .lim-iconbtn{width:26px;height:26px;border-radius:7px}
+.lim-sidebar-filter{flex:none;display:flex;align-items:center;gap:6px;margin:8px 8px 0;padding:0 8px;height:30px;border-radius:9px;background:var(--lim-hover);color:var(--lim-faint)}
+.lim-sidebar-filter:focus-within{box-shadow:0 0 0 2px var(--lim-accent-weak);color:var(--lim-muted)}
+.lim-filter-input{flex:1;min-width:0;height:100%;border:none;background:transparent;color:var(--lim-fg);font:inherit;font-size:12.5px;outline:none}
+.lim-filter-input::placeholder{color:var(--lim-faint)}
+.lim-filter-clear{display:grid;place-items:center;width:18px;height:18px;border:none;border-radius:5px;background:transparent;color:var(--lim-faint);cursor:pointer}
+.lim-filter-clear:hover{background:var(--lim-hover);color:var(--lim-fg)}
+.lim-splitter{flex:none;width:6px;margin-left:-3px;margin-right:-3px;cursor:col-resize;z-index:5;touch-action:none;position:relative}
+.lim-splitter::after{content:'';position:absolute;left:2px;top:0;bottom:0;width:2px;background:transparent;transition:background .12s ease}
+.lim-splitter:hover::after,.lim-splitter:focus-visible::after,.lim-splitter:active::after{background:var(--lim-accent)}
+.lim-splitter:focus-visible{outline:none}
+.lim-composer-dock{flex:none;padding:10px 16px 14px;border-top:1px solid var(--lim-border);background:var(--lim-bg)}
+.lim-composer-dock .lim-composer{width:100%;max-width:640px;margin:0 auto}
 .lim-contacts-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 8px 8px;display:flex;flex-direction:column;gap:2px}
 .lim-contact-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 8px 8px}
 .lim-contacts-scroll::-webkit-scrollbar,.lim-dm-scroll::-webkit-scrollbar,.lim-messages::-webkit-scrollbar,.lim-shared-list::-webkit-scrollbar{width:8px}
@@ -96,14 +116,14 @@ export const CSS = `
 .lim-thread{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--lim-bg)}
 .lim-thread-title{flex:none;display:flex;align-items:center;gap:9px;height:48px;padding:0 10px 0 18px;border-bottom:1px solid var(--lim-border)}
 .lim-thread-name{font-size:14px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lim-thread-desc{flex:1;min-width:0;font-size:11.5px;color:var(--lim-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lim-thread-desc{flex:1;min-width:0;font-size:11.5px;color:var(--lim-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:5px}
 .lim-seg{display:flex;gap:2px;padding:3px;border-radius:9px;background:var(--lim-hover);margin-left:auto}
 .lim-seg button{height:24px;padding:0 11px;border:none;border-radius:7px;background:transparent;color:var(--lim-muted);font:inherit;font-size:11.5px;cursor:pointer}
 .lim-seg button.on{background:var(--lim-surface);color:var(--lim-fg);font-weight:600}
 .lim-seg button:focus-visible{outline:2px solid var(--lim-accent);outline-offset:1px}
 
 .lim-searchbar{flex:none;display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--lim-border);background:var(--lim-bg)}
-.lim-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column}
+.lim-messages{flex:1;overflow-y:auto;padding:16px 16px 8px;display:flex;flex-direction:column}
 .lim-messages-inner{width:100%;max-width:640px;margin:auto auto 0;display:flex;flex-direction:column;gap:12px}
 .lim-msg{max-width:86%;align-self:flex-start;display:flex;align-items:flex-start;gap:8px;position:relative;padding-bottom:26px;margin-bottom:-26px}
 .lim-msg.mine{align-self:flex-end;flex-direction:row-reverse}
@@ -157,7 +177,7 @@ export const CSS = `
 .lim-empty-hint{font-size:12px;color:var(--lim-faint);max-width:260px;line-height:1.7}
 
 /* ---------- 输入区（单容器） ---------- */
-.lim-composer{position:relative;flex:none;display:flex;flex-direction:column;gap:6px;width:calc(100% - 32px);max-width:640px;margin:0 auto 16px;padding:8px;border-radius:14px;background:var(--lim-surface);border:1px solid transparent;transition:border-color .14s ease,box-shadow .14s ease}
+.lim-composer{position:relative;flex:none;display:flex;flex-direction:column;gap:6px;width:100%;max-width:640px;margin:0 auto;padding:8px;border-radius:14px;background:var(--lim-surface);border:1px solid transparent;transition:border-color .14s ease,box-shadow .14s ease}
 .lim-composer:focus-within{border-color:var(--lim-accent);box-shadow:0 0 0 3px var(--lim-accent-weak)}
 .lim-composer.offline{opacity:.8}
 .lim-composer-row{display:flex;align-items:flex-end;gap:4px}
@@ -333,7 +353,14 @@ export const CSS = `
   .lim-messages{padding:12px}
   .lim-messages-inner{gap:10px}
   .lim-msg{max-width:94%}
-  .lim-composer{width:calc(100% - 24px);margin-bottom:12px}
+  .lim-composer-dock{padding:8px 12px 12px}
+  .lim-sidebar-title{display:none}
+  .lim-sidebar-head{padding:0 6px;gap:6px}
+  .lim-sidebar-actions{flex:1;justify-content:flex-end}
+  .lim-sidebar-actions .lim-iconbtn{width:26px;height:26px}
+  .lim-me{padding:0 8px;gap:6px}
+  .lim-me-id{display:none}
+  .lim-sidebar-filter{margin:8px 6px 0;height:28px}
   .lim-thread-desc{display:none}
   .lim-thread-title{padding:0 8px 0 12px}
   .lim-title{font-size:14px}
