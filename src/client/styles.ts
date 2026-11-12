@@ -52,7 +52,7 @@ export const CSS = `
 .lim-iconbtn[aria-pressed="true"]{color:var(--lim-accent);background:var(--lim-accent-weak)}
 
 /* ---------- 主体 ---------- */
-.lim-body{flex:1;display:flex;min-height:0}
+.lim-body{flex:1;display:flex;min-height:0;min-width:0}
 .lim-contacts{width:232px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--lim-sidebar);border-right:1px solid var(--lim-border)}
 .lim-sidebar-head{flex:none;display:flex;align-items:center;gap:8px;height:56px;padding:0 8px 0 14px;cursor:move;user-select:none;touch-action:none;border-bottom:1px solid var(--lim-border)}
 .lim-sidebar-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
@@ -74,8 +74,8 @@ export const CSS = `
 .lim-splitter:focus-visible{outline:none}
 .lim-composer-dock{flex:none;padding:10px 16px 14px;border-top:1px solid var(--lim-border);background:var(--lim-bg)}
 .lim-composer-dock .lim-composer{width:100%;max-width:640px;margin:0 auto}
-.lim-contacts-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 8px 8px;display:flex;flex-direction:column;gap:2px}
-.lim-contact-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 8px 8px}
+.lim-contacts-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:10px 8px 8px;display:flex;flex-direction:column;gap:2px}
+.lim-contact-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:10px 8px 8px}
 .lim-contacts-scroll::-webkit-scrollbar,.lim-dm-scroll::-webkit-scrollbar,.lim-messages::-webkit-scrollbar,.lim-shared-list::-webkit-scrollbar{width:8px}
 .lim-contacts-scroll::-webkit-scrollbar-thumb,.lim-dm-scroll::-webkit-scrollbar-thumb,.lim-messages::-webkit-scrollbar-thumb,.lim-shared-list::-webkit-scrollbar-thumb{background:var(--lim-hover);border-radius:4px}
 .lim-contacts-group{font-size:11px;font-weight:600;letter-spacing:.09em;color:var(--lim-faint);padding:14px 8px 6px;text-transform:uppercase}
@@ -114,7 +114,7 @@ export const CSS = `
 .lim-me-dot.off{background:var(--lim-muted)}
 
 /* ---------- 会话区 ---------- */
-.lim-thread{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--lim-bg)}
+.lim-thread{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--lim-bg)}
 .lim-thread-title{flex:none;display:flex;align-items:center;gap:9px;height:48px;padding:0 10px 0 18px;border-bottom:1px solid var(--lim-border)}
 .lim-thread-name{font-size:14px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lim-thread-desc{flex:1;min-width:0;font-size:11.5px;color:var(--lim-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:5px}
@@ -124,7 +124,7 @@ export const CSS = `
 .lim-seg button:focus-visible{outline:2px solid var(--lim-accent);outline-offset:1px}
 
 .lim-searchbar{flex:none;display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--lim-border);background:var(--lim-bg)}
-.lim-messages{flex:1;overflow-y:auto;padding:16px 16px 8px;display:flex;flex-direction:column}
+.lim-messages{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 8px;display:flex;flex-direction:column}
 .lim-messages-inner{width:100%;max-width:640px;margin:auto auto 0;display:flex;flex-direction:column;gap:12px}
 .lim-msg{max-width:86%;align-self:flex-start;display:flex;align-items:flex-start;gap:8px;position:relative;padding-bottom:26px;margin-bottom:-26px}
 .lim-msg.mine{align-self:flex-end;flex-direction:row-reverse}
@@ -187,7 +187,7 @@ export const CSS = `
 .lim-composer-tool.on{color:var(--lim-accent);background:var(--lim-accent-weak)}
 .lim-composer-tool:disabled{opacity:.4;cursor:not-allowed}
 .lim-composer-tool:focus-visible{outline:2px solid var(--lim-accent);outline-offset:1px}
-.lim-mention-panel{position:absolute;left:14px;right:14px;bottom:calc(100% - 2px);max-height:196px;overflow-y:auto;padding:4px;border-radius:12px;background:var(--lim-surface);border:1px solid var(--lim-border);box-shadow:0 12px 32px rgba(0,0,0,.4);z-index:20}
+.lim-mention-panel{position:absolute;left:14px;right:14px;bottom:calc(100% - 2px);max-height:196px;overflow-y:auto;overflow-x:hidden;padding:4px;border-radius:12px;background:var(--lim-surface);border:1px solid var(--lim-border);box-shadow:0 12px 32px rgba(0,0,0,.4);z-index:20}
 .lim-mention-item{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:none;border-radius:8px;background:transparent;color:var(--lim-fg);font:inherit;font-size:13px;cursor:pointer;text-align:left}
 .lim-mention-item:hover,.lim-mention-item.on{background:var(--lim-accent-weak)}
 .lim-mention-avatar{width:22px;height:22px;flex:none;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--lim-accent) 20%,var(--lim-surface));color:var(--lim-accent);font-size:10.5px;font-weight:700}
@@ -263,11 +263,11 @@ export const CSS = `
 .lim-member-owner{margin-left:auto;font-size:11px;color:var(--lim-faint)}
 
 /* ---------- 诊断日志 ---------- */
-.lim-log{max-height:140px;overflow-y:auto;padding:10px 16px;border-bottom:1px solid var(--lim-border);background:var(--lim-sidebar);font:11px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace}
+.lim-log{max-height:140px;overflow-y:auto;overflow-x:hidden;padding:10px 16px;border-bottom:1px solid var(--lim-border);background:var(--lim-sidebar);font:11px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace}
 .lim-logline{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--lim-muted)}
 
 /* ---------- 建号 ---------- */
-.lim-setup{flex:1;display:flex;flex-direction:column;gap:20px;padding:26px;overflow-y:auto}
+.lim-setup{flex:1;display:flex;flex-direction:column;gap:20px;padding:26px;overflow-y:auto;overflow-x:hidden}
 .lim-setup-hero{display:flex;align-items:center;gap:14px;padding-bottom:4px}
 .lim-setup .lim-section{gap:7px}
 .lim-setup .lim-profile-head{gap:14px}
@@ -290,7 +290,7 @@ export const CSS = `
 .lim-profile-tabs button.on{color:var(--lim-fg);font-weight:600}
 .lim-profile-tabs button.on::after{content:'';position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:var(--lim-accent)}
 .lim-profile-tabs button:focus-visible{outline:2px solid var(--lim-accent);outline-offset:-2px}
-.lim-profile-body{flex:1;min-height:0;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:18px}
+.lim-profile-body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:18px 20px;display:flex;flex-direction:column;gap:18px}
 .lim-profile-foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 20px;border-top:1px solid var(--lim-border);background:color-mix(in srgb,var(--lim-bg) 92%,#fff 3%)}
 .lim-profile-version{font-size:11px;color:var(--lim-faint)}
 .lim-section{display:flex;flex-direction:column;gap:8px}
@@ -324,7 +324,7 @@ export const CSS = `
 .lim-settings{flex:none;display:flex;flex-direction:column;gap:8px;padding:12px;border-bottom:1px solid var(--lim-border);background:var(--lim-sidebar)}
 
 /* ---------- 共享文件 ---------- */
-.lim-shared-list{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px}
+.lim-shared-list{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 18px;display:flex;flex-direction:column;gap:8px}
 .lim-shared-file{display:flex;align-items:center;gap:11px;padding:11px;border-radius:11px;background:var(--lim-surface)}
 .lim-shared-icon{display:grid;place-items:center;width:34px;height:34px;flex:none;border-radius:9px;background:var(--lim-hover);color:var(--lim-muted)}
 .lim-shared-img{width:42px;height:42px;object-fit:cover;border-radius:9px;background:var(--lim-hover)}

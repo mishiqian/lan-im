@@ -834,7 +834,10 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     let h = r.sh
     if (r.mode === 'e' || r.mode === 'se') w = r.sw + (e.clientX - r.sx)
     if (r.mode === 's' || r.mode === 'se') h = r.sh + (e.clientY - r.sy)
-    setSize({ w: Math.min(Math.max(440, w), window.innerWidth - 16), h: Math.min(Math.max(440, h), window.innerHeight - 16) })
+    const nextW = Math.min(Math.max(440, w), window.innerWidth - 16)
+    const nextH = Math.min(Math.max(440, h), window.innerHeight - 16)
+    setSize({ w: nextW, h: nextH })
+    setPos((p) => ({ x: Math.min(p.x, Math.max(8, window.innerWidth - nextW - 8)), y: Math.min(p.y, Math.max(8, window.innerHeight - nextH - 8)) }))
   }
   const onResizePointerUp = (): void => { resizeRef.current = null }
   const resizeHandleProps = {
