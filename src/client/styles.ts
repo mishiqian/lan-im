@@ -102,7 +102,7 @@ export const CSS = `
 .lim-seg button:focus-visible{outline:2px solid var(--lim-accent);outline-offset:1px}
 
 .lim-searchbar{flex:none;display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--lim-border);background:var(--lim-bg)}
-.lim-messages{flex:1;overflow-y:auto;padding:16px 20px 10px;display:flex;flex-direction:column}
+.lim-messages{flex:1;overflow-y:auto;padding:16px 20px 18px;display:flex;flex-direction:column}
 .lim-messages-inner{width:100%;max-width:600px;margin:auto auto 0;display:flex;flex-direction:column;gap:12px}
 .lim-msg{max-width:86%;align-self:flex-start;display:flex;align-items:flex-start;gap:8px;position:relative;padding-bottom:26px;margin-bottom:-26px}
 .lim-msg.mine{align-self:flex-end;flex-direction:row-reverse}
