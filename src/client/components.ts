@@ -106,6 +106,22 @@ export function ContactItem(props: { icon: string; name: string; active: boolean
 }
 
 /** 把 @名字 渲染成高亮片段（不改变纯文本语义） */
+/** 同一天视为同一段 */
+function dayKey(ts: number): string {
+  const d = new Date(ts)
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+}
+
+function dayLabel(ts: number): string {
+  const d = new Date(ts)
+  const today = new Date()
+  const sameDay = (a: Date, b: Date): boolean => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  if (sameDay(d, today)) return '今天'
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+  if (sameDay(d, yesterday)) return '昨天'
+  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`
+}
+
 function renderBodyWithMentions(body: string): React.ReactNode[] {
   const parts = body.split(/(@[\w\u4e00-\u9fa5_.-]{1,24})/g)
   return parts.map((part, i) => (part.startsWith('@') && part.length > 1
@@ -799,7 +815,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     let h = r.sh
     if (r.mode === 'e' || r.mode === 'se') w = r.sw + (e.clientX - r.sx)
     if (r.mode === 's' || r.mode === 'se') h = r.sh + (e.clientY - r.sy)
-    setSize({ w: Math.min(Math.max(360, w), window.innerWidth - 16), h: Math.min(Math.max(440, h), window.innerHeight - 16) })
+    setSize({ w: Math.min(Math.max(440, w), window.innerWidth - 16), h: Math.min(Math.max(440, h), window.innerHeight - 16) })
   }
   const onResizePointerUp = (): void => { resizeRef.current = null }
   const resizeHandleProps = {
@@ -894,22 +910,30 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
           React.createElement('div', { className: 'lim-empty-title' }, activeType === 'channel' ? '这个频道还没有消息' : '还没有私聊消息'),
           React.createElement('div', { className: 'lim-empty-hint' }, activeType === 'channel' ? '说点什么，同一局域网内装了本插件的实例都会收到' : '从左侧选一个人，开始第一次对话'),
         )
-        : merged.map((item, idx) => {
+        : merged.flatMap((item, idx) => {
+            const nodes: React.ReactElement[] = []
+            const ts = item._file === true ? item.f.ts : item.m.ts
+            const previous = merged[idx - 1]
+            const prevTs = previous === undefined ? undefined : (previous._file === true ? previous.f.ts : previous.m.ts)
+            if (prevTs === undefined || dayKey(prevTs) !== dayKey(ts)) {
+              nodes.push(React.createElement('div', { className: 'lim-day', key: `day-${ts}` }, dayLabel(ts)))
+            }
             if (item._file === true) {
-              return React.createElement(FileBubble, { key: item.f.id, file: item.f, selfAccountId: self?.accountId ?? '' })
+              nodes.push(React.createElement(FileBubble, { key: item.f.id, file: item.f, selfAccountId: self?.accountId ?? '' }))
+              return nodes
             }
             // 同一个人 5 分钟内的连续消息，隐藏重复的昵称与时间
-            const prev = merged[idx - 1]
-            const prevMsg = prev !== undefined && prev._file !== true ? prev.m : undefined
+            const prevMsg = previous !== undefined && previous._file !== true ? previous.m : undefined
             const compact = prevMsg !== undefined
               && prevMsg.from === item.m.from
               && Math.abs(item.m.ts - prevMsg.ts) < 5 * 60 * 1000
-            return React.createElement(MessageBubble, {
+            nodes.push(React.createElement(MessageBubble, {
               key: item.m.id, message: item.m, compact, selfAccountId: self?.accountId ?? '',
               onRecall: props.onRecall,
               onEdit: (id) => { setEditingId(id); setReplyTarget(null); setDraft(item.m.body) },
               onReply: (m) => { setReplyTarget(m); setEditingId(null); window.setTimeout(() => composerRef.current?.focus(), 0) },
-            })
+            }))
+            return nodes
           }))
 
   const fileList = activeType !== 'channel' || channelShared.length === 0
@@ -1200,7 +1224,7 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
     React.createElement('div', { className: 'lim-header', onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp, onPointerCancel: onHeaderPointerUp },
       React.createElement(LanImMark, { size: 20, tile: '#0891B2' }),
       React.createElement('span', { className: 'lim-title' }, '局域网聊天'),
-      React.createElement('span', { className: 'lim-ver', title: '插件版本' }, __LANIM_VERSION__),
+
       React.createElement('span', {
         className: 'lim-count' + (connected ? '' : ' off'),
         title: connected ? '已连接宿主' : '与宿主断开，正在重连',

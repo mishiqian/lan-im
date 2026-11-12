@@ -26,6 +26,7 @@ export const CSS = `
   --lim-on-accent:#ffffff;
   --lim-danger:var(--dsw-alias-state-error-primary,#f87171);
   --lim-ok:var(--dsw-alias-state-success-primary,#34d399);
+  container-type:inline-size;
   position:fixed;z-index:2147483000;width:540px;max-width:calc(100vw - 16px);height:640px;max-height:calc(100vh - 16px);
   display:flex;flex-direction:column;background:var(--lim-bg);color:var(--lim-fg);
   border:1px solid var(--lim-border);border-radius:16px;overflow:hidden;
@@ -37,7 +38,7 @@ export const CSS = `
 .lim-window ::selection{background:var(--lim-accent-weak)}
 
 /* ---------- 顶栏 ---------- */
-.lim-header{display:flex;align-items:center;gap:10px;height:54px;flex:none;padding:0 10px 0 16px;background:var(--lim-bg);border-bottom:1px solid var(--lim-border);cursor:move;user-select:none;touch-action:none}
+.lim-header{display:flex;align-items:center;gap:10px;height:56px;flex:none;padding:0 10px 0 16px;background:var(--lim-bg);border-bottom:1px solid var(--lim-border);cursor:move;user-select:none;touch-action:none}
 .lim-mark{display:block;flex:none}
 .lim-title{font-size:14.5px;font-weight:650;letter-spacing:.005em}
 .lim-ver{font-size:10.5px;color:var(--lim-faint);font-weight:500;letter-spacing:.02em;margin-top:3px}
@@ -52,12 +53,12 @@ export const CSS = `
 
 /* ---------- 主体 ---------- */
 .lim-body{flex:1;display:flex;min-height:0}
-.lim-contacts{width:188px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--lim-sidebar);border-right:1px solid var(--lim-border)}
+.lim-contacts{width:192px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--lim-sidebar);border-right:1px solid var(--lim-border)}
 .lim-contacts-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 8px 8px;display:flex;flex-direction:column;gap:2px}
 .lim-contact-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 8px 8px}
 .lim-contacts-scroll::-webkit-scrollbar,.lim-dm-scroll::-webkit-scrollbar,.lim-messages::-webkit-scrollbar,.lim-shared-list::-webkit-scrollbar{width:8px}
 .lim-contacts-scroll::-webkit-scrollbar-thumb,.lim-dm-scroll::-webkit-scrollbar-thumb,.lim-messages::-webkit-scrollbar-thumb,.lim-shared-list::-webkit-scrollbar-thumb{background:var(--lim-hover);border-radius:4px}
-.lim-contacts-group{font-size:10.5px;font-weight:600;letter-spacing:.09em;color:var(--lim-faint);padding:14px 8px 6px;text-transform:uppercase}
+.lim-contacts-group{font-size:11px;font-weight:600;letter-spacing:.09em;color:var(--lim-faint);padding:14px 8px 6px;text-transform:uppercase}
 .lim-contacts-group:first-child{padding-top:2px}
 .lim-contact{display:flex;align-items:center;gap:9px;height:34px;padding:0 9px;border-radius:9px;cursor:pointer;color:var(--lim-muted);font-size:13.5px;transition:background .12s ease,color .12s ease}
 .lim-contact:hover{background:var(--lim-hover);color:var(--lim-fg)}
@@ -66,13 +67,13 @@ export const CSS = `
 .lim-cicon{flex:none;display:grid;place-items:center;width:16px;height:16px;color:var(--lim-faint)}
 .lim-contact:hover .lim-cicon{color:var(--lim-muted)}
 .lim-contact.on .lim-cicon{color:var(--lim-accent)}
-.lim-cavatar{width:22px;height:22px;flex:none;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--lim-accent) 18%,var(--lim-surface));color:var(--lim-accent);font-size:10.5px;font-weight:700}
+.lim-cavatar{width:22px;height:22px;flex:none;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--lim-accent) 18%,var(--lim-surface));color:var(--lim-accent);font-size:11px;font-weight:700}
 .lim-contact.on .lim-cavatar{background:var(--lim-accent-solid);color:var(--lim-on-accent)}
 .lim-cdot{width:6px;height:6px;border-radius:50%;background:var(--lim-ok);flex:none}
 .lim-contact-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lim-contact-badge{flex:none;min-width:17px;height:17px;padding:0 5px;border-radius:9px;background:var(--lim-accent-solid);color:var(--lim-on-accent);font-size:10px;line-height:17px;text-align:center;font-weight:700}
 .lim-contact-mute{flex:none;color:var(--lim-faint);display:grid;place-items:center}
-.lim-channel-act,.lim-channel-x{flex:none;display:grid;place-items:center;width:22px;height:22px;border:none;border-radius:6px;background:transparent;color:var(--lim-faint);cursor:pointer;opacity:0;transition:opacity .12s ease}
+.lim-channel-act,.lim-channel-x{flex:none;display:grid;place-items:center;width:24px;height:24px;border:none;border-radius:6px;background:transparent;color:var(--lim-faint);cursor:pointer;opacity:0;transition:opacity .12s ease}
 .lim-contact:hover .lim-channel-act,.lim-contact:focus-within .lim-channel-act,.lim-contact.on .lim-channel-act,
 .lim-contact:hover .lim-channel-x,.lim-contact:focus-within .lim-channel-x{opacity:1}
 .lim-channel-act:hover{background:var(--lim-hover);color:var(--lim-fg)}
@@ -87,7 +88,7 @@ export const CSS = `
 .lim-me{flex:none;display:flex;align-items:center;gap:9px;height:56px;padding:0 12px;border-top:1px solid var(--lim-border);background:color-mix(in srgb,var(--lim-sidebar) 70%,#000 6%)}
 .lim-me-avatar{width:26px;height:26px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--lim-accent-solid);color:var(--lim-on-accent);font-size:11px;font-weight:700}
 .lim-me-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:600;cursor:pointer}
-.lim-me-id{display:block;font-size:10.5px;font-weight:400;color:var(--lim-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.lim-me-id{display:block;font-size:11px;font-weight:400;color:var(--lim-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .lim-me-dot{width:6px;height:6px;flex:none;border-radius:50%;background:var(--lim-ok)}
 .lim-me-dot.off{background:var(--lim-muted)}
 
@@ -102,12 +103,12 @@ export const CSS = `
 .lim-seg button:focus-visible{outline:2px solid var(--lim-accent);outline-offset:1px}
 
 .lim-searchbar{flex:none;display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--lim-border);background:var(--lim-bg)}
-.lim-messages{flex:1;overflow-y:auto;padding:16px 20px 18px;display:flex;flex-direction:column}
-.lim-messages-inner{width:100%;max-width:600px;margin:auto auto 0;display:flex;flex-direction:column;gap:12px}
+.lim-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column}
+.lim-messages-inner{width:100%;max-width:640px;margin:auto auto 0;display:flex;flex-direction:column;gap:12px}
 .lim-msg{max-width:86%;align-self:flex-start;display:flex;align-items:flex-start;gap:8px;position:relative;padding-bottom:26px;margin-bottom:-26px}
 .lim-msg.mine{align-self:flex-end;flex-direction:row-reverse}
 .lim-msg.compact{margin-top:-6px}
-.lim-msg-avatar{width:28px;height:28px;flex:none;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--lim-accent) 20%,var(--lim-surface));color:var(--lim-accent);font-size:11px;font-weight:700;margin-top:2px}
+.lim-msg-avatar{width:28px;height:28px;flex:none;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--lim-accent) 20%,var(--lim-surface));color:var(--lim-accent);font-size:11.5px;font-weight:700;margin-top:2px}
 .lim-msg-avatar.hidden{visibility:hidden}
 .lim-msg.mine .lim-msg-avatar{background:var(--lim-accent-solid);color:var(--lim-on-accent)}
 .lim-msg-main{display:flex;flex-direction:column;gap:4px;min-width:0;align-items:flex-start}
@@ -133,6 +134,8 @@ export const CSS = `
 .lim-msg-act{flex:none;font-size:11px;color:var(--lim-faint);cursor:pointer;opacity:0;background:none;border:none;padding:0 3px}
 .lim-msg:hover .lim-msg-act,.lim-msg-act:focus-visible{opacity:1}
 .lim-msg-act:hover{color:var(--lim-fg)}
+.lim-day{align-self:center;display:flex;align-items:center;gap:8px;margin:6px 0 2px;font-size:11.5px;color:var(--lim-faint)}
+.lim-day::before,.lim-day::after{content:'';width:24px;height:1px;background:var(--lim-border)}
 .lim-sys{align-self:center;font-size:11px;color:var(--lim-faint);padding:3px 10px;max-width:90%;text-align:center;background:var(--lim-hover);border-radius:999px}
 
 .lim-file{max-width:82%;align-self:flex-start;display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:14px;border-bottom-left-radius:5px;background:var(--lim-surface)}
@@ -154,7 +157,7 @@ export const CSS = `
 .lim-empty-hint{font-size:12px;color:var(--lim-faint);max-width:260px;line-height:1.7}
 
 /* ---------- 输入区（单容器） ---------- */
-.lim-composer{position:relative;flex:none;display:flex;flex-direction:column;gap:6px;margin:0 14px 14px;padding:8px 8px 8px 10px;border-radius:14px;background:var(--lim-surface);border:1px solid transparent;transition:border-color .14s ease,box-shadow .14s ease}
+.lim-composer{position:relative;flex:none;display:flex;flex-direction:column;gap:6px;width:calc(100% - 32px);max-width:640px;margin:0 auto 16px;padding:8px;border-radius:14px;background:var(--lim-surface);border:1px solid transparent;transition:border-color .14s ease,box-shadow .14s ease}
 .lim-composer:focus-within{border-color:var(--lim-accent);box-shadow:0 0 0 3px var(--lim-accent-weak)}
 .lim-composer.offline{opacity:.8}
 .lim-composer-row{display:flex;align-items:flex-end;gap:4px}
@@ -321,12 +324,20 @@ export const CSS = `
 .lim-launcher:focus-visible{outline:2px solid #fff;outline-offset:3px}
 .lim-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--lim-danger);color:#fff;font-size:11px;line-height:18px;text-align:center;font-weight:700}
 
-/* 窄窗口：侧栏收窄、气泡占满 */
-@media (max-width:520px){
-  .lim-contacts{width:172px}
-  .lim-messages{padding:12px 14px 8px}
+/* 窄窗口：按容器宽度响应（媒体查询看的是视口，不是浮窗） */
+@container (max-width:520px){
+  .lim-contacts{width:148px}
+  .lim-contact{font-size:13px;padding:0 6px;gap:7px}
+  .lim-contacts-group{font-size:10.5px;padding:12px 6px 4px}
+  .lim-newchannel{font-size:12.5px;padding:0 6px}
+  .lim-messages{padding:12px}
+  .lim-messages-inner{gap:10px}
+  .lim-msg{max-width:94%}
+  .lim-composer{width:calc(100% - 24px);margin-bottom:12px}
   .lim-thread-desc{display:none}
-  .lim-msg{max-width:92%}
+  .lim-thread-title{padding:0 8px 0 12px}
+  .lim-title{font-size:14px}
+  .lim-ver{display:none}
 }
 @media (prefers-reduced-motion:reduce){.lim-window *,.lim-window *::before,.lim-window *::after{transition:none!important;animation:none!important}}
 `
