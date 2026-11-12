@@ -862,32 +862,35 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         channelShared.map((f) => React.createElement(SharedFileBubble, { key: f.id, file: f, self, onRemove: props.onRemoveSharedFile })),
       )
 
-  const inputBar = needSetup || activeTab === 'files' ? null : React.createElement(React.Fragment, null,
+  const inputBar = needSetup || activeTab === 'files' ? null : React.createElement('div', { className: 'lim-composer' + (connected ? '' : ' offline') },
     replyTarget !== null
-      ? React.createElement('div', { className: 'lim-replybar' },
-          React.createElement('div', { className: 'lim-replybar-text' },
-            React.createElement('span', { className: 'lim-replybar-name' }, `回复 @${replyTarget.fromName || replyTarget.from}`),
-            React.createElement('span', { className: 'lim-replybar-body' }, replyTarget.body),
-          ),
-          React.createElement('button', { className: 'lim-replybar-x', title: '取消引用', 'aria-label': '取消引用', onClick: () => setReplyTarget(null) },
-            React.createElement(Icon, { name: 'close', size: 13 })),
+      ? React.createElement('div', { className: 'lim-chip lim-chip-reply' },
+          React.createElement('span', { className: 'lim-chip-name' }, `回复 ${replyTarget.fromName || replyTarget.from}`),
+          React.createElement('span', { className: 'lim-chip-body' }, replyTarget.body),
+          React.createElement('button', { className: 'lim-chip-x', title: '取消引用', 'aria-label': '取消引用', onClick: () => setReplyTarget(null) },
+            React.createElement(Icon, { name: 'close', size: 12 })),
         )
       : null,
     editingId !== null
-      ? React.createElement('div', { className: 'lim-editbar' },
-          React.createElement('span', null, '正在编辑这条消息'),
-          React.createElement('button', {
-            onClick: () => { setEditingId(null); setDraft('') },
-          }, '取消'),
+      ? React.createElement('div', { className: 'lim-chip lim-chip-edit' },
+          React.createElement('span', { className: 'lim-chip-name' }, '正在编辑这条消息'),
+          React.createElement('button', { className: 'lim-chip-x', title: '取消编辑', 'aria-label': '取消编辑', onClick: () => { setEditingId(null); setDraft('') } },
+            React.createElement(Icon, { name: 'close', size: 12 })),
         )
       : null,
-    React.createElement('div', { className: 'lim-inputbar' },
-      React.createElement('label', { className: 'lim-attach', title: !connected ? '与宿主断开，暂不能发送文件' : '发送文件（≤20MB，也可拖进来）', style: connected ? undefined : { opacity: 0.45, cursor: 'not-allowed' } },
-        React.createElement(Icon, { name: 'paperclip', size: 18 }),
-        React.createElement('input', { ref: fileRef, type: 'file', style: { display: 'none' }, onChange: (e: any) => { const f = e.target.files?.[0]; if (f) props.onSendFile(f, active, activeType); e.target.value = '' } }),
+    React.createElement('div', { className: 'lim-composer-row' },
+      React.createElement('label', {
+        className: 'lim-attach',
+        title: connected ? '发送文件（≤20MB，也可拖进来）' : '与宿主断开，暂不能发送文件',
+      },
+        React.createElement(Icon, { name: 'paperclip', size: 17 }),
+        React.createElement('input', {
+          ref: fileRef, type: 'file', style: { display: 'none' }, disabled: !connected,
+          onChange: (e: any) => { const f = e.target.files?.[0]; if (f) props.onSendFile(f, active, activeType); e.target.value = '' },
+        }),
       ),
       React.createElement('textarea', {
-        ref: composerRef, className: 'lim-input lim-composer', rows: 1, value: draft,
+        ref: composerRef, className: 'lim-composer-input', rows: 1, value: draft,
         placeholder: !connected
           ? '已断开连接，正在重连…'
           : editingId !== null
@@ -909,20 +912,25 @@ export function ChatWindow(props: ChatWindowProps): React.ReactElement {
         },
       }),
       React.createElement('button', {
-        className: 'lim-send' + (draft.trim() === '' ? ' ghost' : ''), disabled: !connected || (draft.trim() === '' && editingId === null),
-        onClick: send, title: !connected ? '与宿主断开，暂不能发送' : '发送（回车）',
+        className: 'lim-composer-send' + (draft.trim() === '' ? ' idle' : ''),
+        disabled: !connected || (draft.trim() === '' && editingId === null),
+        onClick: send,
+        title: !connected ? '与宿主断开，暂不能发送' : '发送（回车）',
+        'aria-label': '发送',
       }, editingId !== null
-        ? '保存'
+        ? React.createElement('span', { className: 'lim-send-text' }, '保存')
         : React.createElement(Icon, { name: 'send', size: 16 })),
     ),
   )
 
-  const fileToolbar = needSetup || activeTab !== 'files' ? null : React.createElement('div', { className: 'lim-inputbar' },
-    React.createElement('label', { className: 'lim-attach', title: '上传到频道共享空间' },
-      React.createElement(Icon, { name: 'upload', size: 17 }),
-      React.createElement('input', { ref: sharedFileRef, type: 'file', style: { display: 'none' }, onChange: (e: any) => { const f = e.target.files?.[0]; if (f && activeType === 'channel') props.onSendSharedFile(f, active); e.target.value = '' } }),
+  const fileToolbar = needSetup || activeTab !== 'files' ? null : React.createElement('div', { className: 'lim-composer' },
+    React.createElement('div', { className: 'lim-composer-row' },
+      React.createElement('label', { className: 'lim-attach', title: '上传到频道共享空间' },
+        React.createElement(Icon, { name: 'upload', size: 17 }),
+        React.createElement('input', { ref: sharedFileRef, type: 'file', style: { display: 'none' }, onChange: (e: any) => { const f = e.target.files?.[0]; if (f && activeType === 'channel') props.onSendSharedFile(f, active); e.target.value = '' } }),
+      ),
+      React.createElement('div', { className: 'lim-shared-hint' }, activeType === 'channel' ? `上传到「${activeChannel?.name ?? active}」共享空间` : ''),
     ),
-    React.createElement('div', { className: 'lim-shared-hint' }, activeType === 'channel' ? `上传到「${activeChannel?.name ?? active}」共享空间` : ''),
   )
 
 

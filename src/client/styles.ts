@@ -153,17 +153,42 @@ export const CSS = `
 .lim-empty-title{font-size:14px;font-weight:600;color:var(--lim-muted)}
 .lim-empty-hint{font-size:12px;color:var(--lim-faint);max-width:260px;line-height:1.7}
 
-/* ---------- 输入区 ---------- */
-.lim-inputbar{flex:none;display:flex;align-items:flex-end;gap:6px;padding:10px 12px 14px;background:var(--lim-bg)}
-.lim-replybar{flex:none;display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--lim-surface);border-top:1px solid var(--lim-border)}
-.lim-replybar-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.lim-replybar-name{font-size:11.5px;color:var(--lim-accent);font-weight:600}
-.lim-replybar-body{font-size:11.5px;color:var(--lim-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lim-replybar-x{display:grid;place-items:center;width:22px;height:22px;flex:none;border:none;border-radius:6px;background:transparent;color:var(--lim-faint);cursor:pointer}
-.lim-replybar-x:hover{background:var(--lim-hover);color:var(--lim-fg)}
-.lim-editbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 14px;font-size:12px;color:var(--lim-muted);background:var(--lim-accent-weak);border-top:1px solid var(--lim-border)}
-.lim-editbar button{border:none;background:none;color:var(--lim-accent);font:inherit;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:6px}
-.lim-editbar button:hover{background:var(--lim-hover)}
+/* ---------- 输入区（单容器） ---------- */
+.lim-composer{flex:none;display:flex;flex-direction:column;gap:6px;margin:0 14px 14px;padding:8px 8px 8px 10px;border-radius:14px;background:var(--lim-surface);border:1px solid transparent;transition:border-color .14s ease,box-shadow .14s ease}
+.lim-composer:focus-within{border-color:var(--lim-accent);box-shadow:0 0 0 3px var(--lim-accent-weak)}
+.lim-composer.offline{opacity:.8}
+.lim-composer-row{display:flex;align-items:flex-end;gap:6px}
+.lim-attach{display:grid;place-items:center;width:30px;height:32px;flex:none;border-radius:8px;color:var(--lim-muted);cursor:pointer;transition:background .12s ease,color .12s ease}
+.lim-attach:hover{background:var(--lim-hover);color:var(--lim-fg)}
+.lim-attach:focus-within{outline:2px solid var(--lim-accent);outline-offset:1px}
+.lim-composer-input{flex:1;min-width:0;padding:6px 4px;font:inherit;font-size:13.5px;line-height:1.55;color:var(--lim-fg);background:transparent;border:none;outline:none;resize:none;min-height:32px;max-height:132px;overflow-y:hidden;font-family:inherit}
+.lim-composer-input::placeholder{color:var(--lim-faint)}
+.lim-composer-send{display:grid;place-items:center;width:32px;height:32px;flex:none;border:none;border-radius:9px;background:var(--lim-accent-solid);color:var(--lim-on-accent);cursor:pointer;transition:filter .12s ease,background .12s ease,color .12s ease}
+.lim-composer-send:hover{filter:brightness(1.12)}
+.lim-composer-send:focus-visible{outline:2px solid var(--lim-accent);outline-offset:2px}
+.lim-composer-send.idle{background:transparent;color:var(--lim-muted);cursor:default}
+.lim-composer-send.idle:hover{filter:none;background:var(--lim-hover)}
+.lim-composer-send:disabled{cursor:not-allowed}
+.lim-send-text{font:inherit;font-size:12px;font-weight:600;padding:0 4px}
+
+/* 引用 / 编辑：作为输入框内的 chip */
+.lim-chip{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;background:var(--lim-hover);font-size:12px}
+.lim-chip-name{flex:none;font-weight:600;color:var(--lim-accent)}
+.lim-chip-body{flex:1;min-width:0;color:var(--lim-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lim-chip-x{display:grid;place-items:center;width:20px;height:20px;flex:none;border:none;border-radius:6px;background:transparent;color:var(--lim-faint);cursor:pointer}
+.lim-chip-x:hover{background:var(--lim-hover);color:var(--lim-fg)}
+
+/* 输入区下方错误提示 */
+.lim-error{position:absolute;left:14px;right:14px;bottom:88px;padding:9px 12px;border-radius:10px;background:color-mix(in srgb,var(--lim-danger) 14%,var(--lim-bg));border:1px solid color-mix(in srgb,var(--lim-danger) 36%,transparent);color:var(--lim-fg);font-size:12px;z-index:2}
+
+/* 搜索框 / 弹层输入共用 */
+.lim-input{flex:1;min-width:0;padding:10px 12px;font:inherit;font-size:13.5px;line-height:1.5;color:var(--lim-fg);background:var(--lim-surface);border:1px solid transparent;border-radius:12px;outline:none}
+.lim-input::placeholder{color:var(--lim-faint)}
+.lim-input:hover{border-color:var(--lim-border)}
+.lim-input:focus{border-color:var(--lim-accent);box-shadow:0 0 0 3px var(--lim-accent-weak)}
+.lim-shared-hint{flex:1;font-size:12px;color:var(--lim-faint);padding:7px 4px}
+
+/* 上传进度卡 */
 .lim-upload{display:flex;flex-direction:column;gap:6px;align-self:flex-end;width:min(320px,86%);padding:10px 12px;border-radius:12px;background:var(--lim-surface);border:1px solid var(--lim-border)}
 .lim-upload-head{display:flex;align-items:center;gap:8px}
 .lim-upload-name{flex:1;min-width:0;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -172,24 +197,10 @@ export const CSS = `
 .lim-upload-bar{height:4px;border-radius:2px;background:var(--lim-hover);overflow:hidden}
 .lim-upload-bar span{display:block;height:100%;background:var(--lim-accent);transition:width .15s ease}
 .lim-upload-sub{font-size:11px;color:var(--lim-faint)}
+
+/* 拖拽遮罩 */
 .lim-dropzone{position:absolute;inset:0;z-index:60;display:grid;place-items:center;background:color-mix(in srgb,var(--lim-bg) 78%,transparent);backdrop-filter:blur(2px);border:2px dashed var(--lim-accent);border-radius:16px;pointer-events:none}
 .lim-dropzone-box{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--lim-accent);font-size:13px;font-weight:600}
-.lim-attach{display:grid;place-items:center;width:30px;height:34px;flex:none;border-radius:10px;color:var(--lim-muted);cursor:pointer}
-.lim-attach:hover{background:var(--lim-hover);color:var(--lim-fg)}
-.lim-attach:focus-within{outline:2px solid var(--lim-accent);outline-offset:1px}
-.lim-input{flex:1;min-width:0;padding:10px 12px;font:inherit;font-size:13.5px;line-height:1.5;color:var(--lim-fg);background:var(--lim-surface);border:1px solid transparent;border-radius:12px;outline:none}
-.lim-composer{resize:none;max-height:132px;min-height:36px;overflow-y:hidden;font-family:inherit}
-.lim-input::placeholder{color:var(--lim-faint)}
-.lim-input:hover{border-color:var(--lim-border)}
-.lim-input:focus{border-color:var(--lim-accent);box-shadow:0 0 0 3px var(--lim-accent-weak)}
-.lim-send{display:grid;place-items:center;height:36px;min-width:38px;padding:0 9px;border:none;border-radius:10px;background:var(--lim-accent-solid);color:var(--lim-on-accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:filter .12s ease}
-.lim-send:hover{filter:brightness(1.12)}
-.lim-send:focus-visible{outline:2px solid var(--lim-accent);outline-offset:2px}
-.lim-send:disabled{background:var(--lim-hover);color:var(--lim-faint);cursor:not-allowed;filter:none}
-.lim-send.danger{background:var(--lim-danger)}
-.lim-cta{align-self:flex-end;height:38px;min-width:100px;font-size:13.5px}
-
-.lim-error{position:absolute;left:14px;right:14px;bottom:68px;padding:9px 12px;border-radius:10px;background:color-mix(in srgb,var(--lim-danger) 14%,var(--lim-bg));border:1px solid color-mix(in srgb,var(--lim-danger) 36%,transparent);color:var(--lim-fg);font-size:12px;z-index:2}
 
 /* ---------- 弹层 ---------- */
 .lim-modal{position:absolute;inset:0;z-index:40;display:grid;place-items:center;background:rgba(6,8,12,.6);backdrop-filter:blur(2px)}
